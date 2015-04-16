@@ -181,10 +181,8 @@ def _run_prospector(m_dict, files_to_lint):
         This function enables us to run different tools on different
         classes of files, which is necessary in the case of tests.
         """
-        if len(tools) > 0:
-            tools_argv = ("-t " + " -t ".join(tools)).split(" ")
-        else:
-            tools_argv = []
+        assert len(tools) > 0
+        tools_argv = ("-t " + " -t ".join(tools)).split(" ")
 
         # pylint doesn't like absolute paths, so convert to relative.
         all_argv = (prospector_argv +
@@ -320,9 +318,6 @@ class PolysquareLintCommand(setuptools.Command):
 
         The suppression format is suppress(CODE1,CODE2,CODE3) etc.
         """
-        if not os.path.isfile(os.path.realpath(filename)):
-            return False
-
         if code in self.suppress_codes:
             return True
 

@@ -120,7 +120,8 @@ class TestPolysquareLintCommand(TestCase):
         param("F401", "import sys\n"),
         param("N801", "class wrong_name(object):\n    pass\n"),
         param("D100", "def my_method():\n    pass\n"),
-        param("I100", "import sys\n\nimport os\n")
+        param("I100", "import sys\n\nimport os\n"),
+        param("Q000", "call('single quotes')\n")
     ]
 
     @parameterized.expand(FLAKE8_BUGS)

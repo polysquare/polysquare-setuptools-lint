@@ -10,7 +10,7 @@ install:
  - pip install coverage coveralls
 script:
  - python setup.py develop
- - coverage run --source=setuptools_green setup.py green
+ - coverage run --source=polysquare_setuptools_lint setup.py green
 after_success:
  - coveralls
 deploy:
@@ -20,5 +20,5 @@ deploy:
   password:
     secure: "MTnHw/FFl/7BEz9TW5NN981qWf76Yg0Lx5nGYYClowKdYEB4CE9zyiXDK0RFI3HYqVUwg81+wSTV4ZaXlagaTC1l7YZjlj2MaV6Fo6wMOT0iZ4coZ+nYJ/zv5LAnPl+iIY4P+IhDoowLGPLug/GtU5fPnoVxz/ZVdw4IdXu/Y20="
   on:
-    repo: polysquare/setuptools-green
+    repo: polysquare/polysquare-setuptools-lint
     branch: master
