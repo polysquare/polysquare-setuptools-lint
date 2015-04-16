@@ -23,19 +23,22 @@ from distutils.errors import DistutilsArgError
 import setuptools
 
 
-class SuppressedOutput(object):
+class CapturedOutput(object):
 
-    """Suppress stdout and stderr for context duration."""
+    """Represents the captured contents of stdout and stderr."""
 
     def __init__(self):
         """Initialize the class."""
-        super(SuppressedOutput, self).__init__()
+        super(CapturedOutput, self).__init__()
+        self.stdout = ""
+        self.stderr = ""
+
         self._stdout_handle = None
         self._stderr_handle = None
 
     def __enter__(self):
         """Start capturing output."""
-        from six.moves import StringIO
+        from six import StringIO
 
         self._stdout_handle = sys.stdout
         self._stderr_handle = sys.stderr
@@ -46,10 +49,16 @@ class SuppressedOutput(object):
         return self
 
     def __exit__(self, exc_type, value, traceback):
-        """Finish suppressing output."""
+        """Finish capturing output."""
         del exc_type
         del value
         del traceback
+
+        sys.stdout.seek(0)
+        self.stdout = sys.stdout.read()
+
+        sys.stderr.seek(0)
+        self.stderr = sys.stderr.read()
 
         sys.stdout = self._stdout_handle
         self._stdout_handle = None
@@ -74,16 +83,18 @@ def _patched_pep257():
     """Monkey-patch pep257 after imports to avoid info logging."""
     import pep257
 
-    def dummy(*args, **kwargs):
-        """A dummy logging function."""
-        pass
+    if getattr(pep257, "log", None):
+        def dummy(*args, **kwargs):
+            """A dummy logging function."""
+            pass
 
-    old_log_info = pep257.log.info
-    pep257.log.info = dummy  # suppress(unused-attribute)
+        old_log_info = pep257.log.info
+        pep257.log.info = dummy  # suppress(unused-attribute)
     try:
         yield
     finally:
-        pep257.log.info = old_log_info
+        if getattr(pep257, "log", None):
+            pep257.log.info = old_log_info
 
 
 def _run_flake8(m_dict, files_to_lint):
@@ -139,6 +150,17 @@ def _run_flake8(m_dict, files_to_lint):
                     jobs="1").check_files(paths=files_to_lint)
 
 
+def can_run_pylint():
+    """Return true if we can run pylint.
+
+    Pylint fails on pypy3 as pypy3 doesn't implement certain attributes
+    on functions.
+    """
+    from platform import python_implementation
+    from sys import version_info
+    return not (python_implementation() == "PyPy" and version_info.major == 3)
+
+
 def _run_prospector(m_dict, files_to_lint):
     """Run prospector."""
     from prospector.run import Prospector, ProspectorConfig
@@ -181,17 +203,36 @@ def _run_prospector(m_dict, files_to_lint):
 
     is_test = re.compile(r"^.*test[^{0}]*.py$".format(os.path.sep))
 
-    run_prospector_on(files_to_lint, ["dodgy",
-                                      "pep257",
-                                      "pep8",
-                                      "pyflakes",
-                                      "pylint"])
+    linter_tools = [
+        "dodgy",
+        "pep257",
+        "pep8",
+        "pyflakes"
+    ]
+
+    if can_run_pylint():
+        linter_tools.append("pylint")
+
+    run_prospector_on(files_to_lint, linter_tools)
     run_prospector_on([f for f in files_to_lint if not is_test.match(f)],
                       ["frosted", "vulture"])
 
 
+def can_run_pychecker():
+    """Return true if we can use pychecker."""
+    from platform import python_implementation
+    from sys import version_info
+    return version_info.major == 2 and python_implementation() == "CPython"
+
+
 def _run_pychecker(m_dict, files_to_lint):
-    """Run pychecker."""
+    """Run pychecker.
+
+    This tool will not run if we're not on the right python version.
+    """
+    if not can_run_pychecker():
+        return
+
     os.environ["PYCHECKER_DISABLED"] = "True"
 
     from pychecker import checker
@@ -217,7 +258,7 @@ def _run_pychecker(m_dict, files_to_lint):
     config, files, supps = Config.setupFromArgs(args + files)
 
     with _custom_argv([]):
-        with SuppressedOutput():
+        with CapturedOutput():
             checker.processFiles(files, config, supps)
             check_modules = [m for m in pcm.getPCModules() if m.check]
             warnings = warn.find(check_modules, config, supps)

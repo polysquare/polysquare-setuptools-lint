@@ -10,8 +10,6 @@ import os
 
 import shutil
 
-import capture
-
 from distutils.errors import DistutilsArgError
 
 import doctest
@@ -24,8 +22,10 @@ from setuptools import Distribution
 from setuptools import find_packages as fp
 
 import polysquare_setuptools_lint
-from polysquare_setuptools_lint import PolysquareLintCommand
-from polysquare_setuptools_lint import SuppressedOutput
+from polysquare_setuptools_lint import (can_run_pychecker,
+                                        can_run_pylint,
+                                        PolysquareLintCommand)
+from polysquare_setuptools_lint import CapturedOutput
 
 from testtools import ExpectedException, TestCase
 from testtools.matchers import (DocTestMatches, MatchesAll, Not)
@@ -35,7 +35,7 @@ from tempfile import mkdtemp
 
 class TestPolysquareLintCommand(TestCase):
 
-    """Hello test."""
+    """Tests for the PolysquareLintCommand class."""
 
     def __init__(self, *args, **kwargs):
         """Initialize this test case."""
@@ -108,14 +108,13 @@ class TestPolysquareLintCommand(TestCase):
 
     def _get_command_output(self, set_options_func=lambda d: None):
         """Get output of running lint command with command line arguments."""
-        with SuppressedOutput():
-            with capture.stdout as captured:
-                cmd = PolysquareLintCommand(self._distribution)
-                set_options_func(cmd)
-                cmd.ensure_finalized()
-                cmd.run()
+        with CapturedOutput() as captured:
+            cmd = PolysquareLintCommand(self._distribution)
+            set_options_func(cmd)
+            cmd.ensure_finalized()
+            cmd.run()
 
-        return str(captured)
+        return captured.stdout
 
     FLAKE8_BUGS = [
         param("F401", "import sys\n"),
@@ -144,9 +143,13 @@ class TestPolysquareLintCommand(TestCase):
                         DocTestMatches("...{0}...".format(bug_type),
                                        doctest.ELLIPSIS))
 
-    PROSPECTOR_TEST_ONLY_BUGS = [
-        param("unused-argument", "def my_method(extras):\n    return 1\n"),
-    ]
+    if can_run_pylint():
+        PROSPECTOR_TEST_ONLY_BUGS = [
+            param("unused-argument",
+                  "def my_method(extras):\n    return 1\n"),
+        ]
+    else:
+        PROSPECTOR_TEST_ONLY_BUGS = []
 
     PROSPECTOR_MODULE_ONLY_BUGS = [
         param("unused-function", "def my_method():\n    pass\n")
@@ -192,6 +195,9 @@ class TestPolysquareLintCommand(TestCase):
     @parameterized.expand(PYCHECKER_BUGS)
     def test_find_bugs_with_pychecker(self, bug_type, script):
         """Find bugs with pychecker on package files."""
+        if not can_run_pychecker():
+            self.skipTest("""Pychecker is not available on this python""")
+
         with self._open_module_file() as f:
             f.write(script)
 
@@ -202,6 +208,9 @@ class TestPolysquareLintCommand(TestCase):
     @parameterized.expand(PYCHECKER_BUGS)
     def test_find_bugs_with_pychecker_tests(self, bug_type, script):
         """Find certain bugs with pychecker on test files."""
+        if not can_run_pychecker():
+            self.skipTest("""Pychecker is not available on this python""")
+
         with self._open_test_file() as f:
             f.write(script)
 
@@ -211,8 +220,6 @@ class TestPolysquareLintCommand(TestCase):
 
     PYROMA_BUGS = [
         param("LongDescription",
-              "from setuptools import setup\nsetup(name=\"foo\")"),
-        param("PythonVersion",
               "from setuptools import setup\nsetup(name=\"foo\")")
     ]
 
