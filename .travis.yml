@@ -1,0 +1,24 @@
+language: python
+sudo: false
+python:
+ - '2.7'
+ - '3.4'
+ - pypy
+ - pypy3
+install:
+ - pip install -e .[green] --process-dependency-links --allow-external pychecker --allow-unverified pychecker --allow-external prospector
+ - pip install coverage coveralls
+script:
+ - python setup.py develop
+ - coverage run --source=setuptools_green setup.py green
+after_success:
+ - coveralls
+deploy:
+  provider: pypi
+  user:
+    secure: "SWiGadYn0KyMny4r/jwnmFNASJRCYO9+Mzh8Sjhe4Gy6cFsvRNZpcCBSYmfO+6Cu8ntDkVIWVIh5MZLVKrlI/JlayLgJAPi8oIRua+8NGLlsXXteVdwccc0zYzI9VOH78yy4TTMrTDy8+GbHw0Dpzp+TLze4ET5BMv+sgFdQqhI="
+  password:
+    secure: "MTnHw/FFl/7BEz9TW5NN981qWf76Yg0Lx5nGYYClowKdYEB4CE9zyiXDK0RFI3HYqVUwg81+wSTV4ZaXlagaTC1l7YZjlj2MaV6Fo6wMOT0iZ4coZ+nYJ/zv5LAnPl+iIY4P+IhDoowLGPLug/GtU5fPnoVxz/ZVdw4IdXu/Y20="
+  on:
+    repo: polysquare/setuptools-green
+    branch: master
