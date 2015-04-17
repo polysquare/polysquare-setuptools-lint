@@ -153,8 +153,14 @@ class TestPolysquareLintCommand(TestCase):
         PROSPECTOR_TEST_ONLY_BUGS = []
 
     PROSPECTOR_MODULE_ONLY_BUGS = [
-        param("unused-function", "def my_method():\n    pass\n")
+        param("unused-function", "def my_method():\n    pass\n"),
     ]
+
+    PROSPECTOR_NO_TESTS_BUGS = [
+        param("invalid-name",
+              "def super_excessive_really_long_method_name_which_is_long():\n"
+              "    pass\n")
+    ] + PROSPECTOR_MODULE_ONLY_BUGS
 
     PROSPECTOR_ALL_BUGS = (PROSPECTOR_MODULE_ONLY_BUGS +
                            PROSPECTOR_TEST_ONLY_BUGS)
@@ -179,9 +185,9 @@ class TestPolysquareLintCommand(TestCase):
                         DocTestMatches("...{0}...".format(bug_type),
                                        doctest.ELLIPSIS))
 
-    @parameterized.expand(PROSPECTOR_MODULE_ONLY_BUGS)
-    def test_dont_find_unused_functons_on_tests(self, bug_type, script):
-        """Dont find unused functions with prospector on test files."""
+    @parameterized.expand(PROSPECTOR_NO_TESTS_BUGS)
+    def test_dont_find_certain_bugs_on_tests(self, bug_type, script):
+        """Dont find certain bugs on tests."""
         with self._open_test_file() as f:
             f.write(script)
 
