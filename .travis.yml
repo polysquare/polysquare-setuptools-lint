@@ -1,18 +1,22 @@
 language: python
 sudo: false
+cache:
+ - container
 python:
  - '2.7'
  - '3.4'
  - pypy
  - pypy3
 install:
- - pip install -e .[green] --process-dependency-links --allow-external pychecker --allow-unverified pychecker --allow-external prospector
- - pip install coverage coveralls
+ - eval $(curl -LSs public-travis-scripts.polysquare.org/bootstrap.py | python /dev/stdin -d container -s setup/python/setup.py -e)
 script:
- - python setup.py develop
- - coverage run --source=polysquare_setuptools_lint setup.py green
+ - polysquare_run check/python/check.py
 after_success:
- - coveralls
+ - polysquare_run coverage/python/coverage.py
+before_cache:
+ - polysquare_cleanup
+before_deploy:
+ - eval $(curl -LSs public-travis-scripts.polysquare.org/bootstrap.py | python /dev/stdin -d container -s deploy/python/deploy.py -e)
 deploy:
   provider: pypi
   user:
