@@ -171,11 +171,12 @@ def _run_prospector(m_dict, files_to_lint):
         "-F",
         "-D",
         "-M",
+        "--no-autodetect",
         "-s",
         "veryhigh"
     ]
 
-    def run_prospector_on(files_to_lint, tools):
+    def run_prospector_on(files_to_lint, tools, ignore_codes=list()):
         """Run prospector on files_to_lint, using the specified tools.
 
         This function enables us to run different tools on different
@@ -195,6 +196,9 @@ def _run_prospector(m_dict, files_to_lint):
                 m.to_absolute_path(cwd)
                 loc = m.location
 
+                if m.code in ignore_codes:
+                    continue
+
                 if isinstance(m_dict[loc.path][loc.line][m.code],
                               defaultdict):
                     m_dict[loc.path][loc.line][m.code] = m
@@ -211,9 +215,23 @@ def _run_prospector(m_dict, files_to_lint):
     if can_run_pylint():
         linter_tools.append("pylint")
 
-    run_prospector_on(files_to_lint, linter_tools)
+    # Run prospector on tests. There are some errors we don't care about:
+    # - invalid-name: This is often triggered because test method names can
+    #                 be quite long. Descriptive test method names are good,
+    #                 so disable this warning.
+    # - super-on-old-class: unittest.TestCase is a new style class, but
+    #                       pylint detects an old style class.
+    # - too-many-public-methods: TestCase subclasses by definition have
+    #                            lots of methods.
+    run_prospector_on([f for f in files_to_lint if is_test.match(f)],
+                      linter_tools,
+                      ignore_codes=[
+                          "invalid-name",
+                          "super-on-old-class",
+                          "too-many-public-methods"
+                      ])
     run_prospector_on([f for f in files_to_lint if not is_test.match(f)],
-                      ["frosted", "vulture"])
+                      linter_tools + ["frosted", "vulture"])
 
 
 def can_run_pychecker():
