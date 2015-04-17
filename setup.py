@@ -22,7 +22,7 @@ else:
     additional_dependency_links = list()
 
 setup(name="polysquare-setuptools-lint",
-      version="0.0.1",
+      version="0.0.2",
       description="""Provides a 'polysquarelint' command for setuptools""",
       long_description_markdown_filename="README.md",
       author="Sam Spilsbury",
