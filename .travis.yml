@@ -8,7 +8,8 @@ python:
  - pypy
  - pypy3
 install:
- - eval $(curl -LSs public-travis-scripts.polysquare.org/bootstrap.py | python /dev/stdin -d container -s setup/python/setup.py -e)
+ - sleep .$[ ( $RANDOM % 4 ) + 1 ]s
+ - eval $(curl -LSs --retry 100 public-travis-scripts.polysquare.org/bootstrap.py | python /dev/stdin -d container -s setup/python/setup.py -e)
 script:
  - polysquare_run check/python/check.py
 after_success:
