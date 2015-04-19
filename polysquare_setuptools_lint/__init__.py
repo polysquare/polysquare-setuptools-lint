@@ -11,10 +11,10 @@ import os.path
 
 import re
 
-import sys
-from sys import exit
+import sys  # suppress(I100)
+from sys import exit as sys_exit  # suppress(I100,PYC70)
 
-from collections import defaultdict
+from collections import defaultdict  # suppress(I100)
 
 from contextlib import contextmanager
 
@@ -23,7 +23,7 @@ from distutils.errors import DistutilsArgError
 import setuptools
 
 
-class CapturedOutput(object):
+class CapturedOutput(object):  # suppress(too-few-public-methods)
 
     """Represents the captured contents of stdout and stderr."""
 
@@ -86,7 +86,8 @@ def _patched_pep257():
     if getattr(pep257, "log", None):
         def dummy(*args, **kwargs):
             """A dummy logging function."""
-            pass
+            del args
+            del kwargs
 
         old_log_info = pep257.log.info
         pep257.log.info = dummy  # suppress(unused-attribute)
@@ -135,7 +136,7 @@ def _run_flake8(m_dict, files_to_lint):
                                                           text,
                                                           check)
 
-            fn = self._current_file
+            fn = self._current_file  # suppress(invalid-name)
             if not isinstance(m_dict[fn][line][code], Message):
                 m_dict[fn][line][code] = Message(code,
                                                  code,
@@ -157,7 +158,7 @@ def can_run_pylint():
     on functions.
     """
     from platform import python_implementation
-    from sys import version_info
+    from sys import version_info  # suppress(PYC70)
     return not (python_implementation() == "PyPy" and version_info.major == 3)
 
 
@@ -176,13 +177,15 @@ def _run_prospector(m_dict, files_to_lint):
         "veryhigh"
     ]
 
-    def run_prospector_on(files_to_lint, tools, ignore_codes=list()):
+    def run_prospector_on(files_to_lint, tools, ignore_codes=None):
         """Run prospector on files_to_lint, using the specified tools.
 
         This function enables us to run different tools on different
         classes of files, which is necessary in the case of tests.
         """
         assert len(tools) > 0
+
+        ignore_codes = ignore_codes or list()
         tools_argv = ("-t " + " -t ".join(tools)).split(" ")
 
         # pylint doesn't like absolute paths, so convert to relative.
@@ -192,16 +195,18 @@ def _run_prospector(m_dict, files_to_lint):
         with _custom_argv(all_argv):
             prospector = Prospector(ProspectorConfig())
             prospector.execute()
-            for m in (prospector.get_messages() or list()):
-                m.to_absolute_path(cwd)
-                loc = m.location
+            messages = prospector.get_messages() or list()
+            for message in messages:
+                message.to_absolute_path(cwd)
+                loc = message.location
+                code = message.code
 
-                if m.code in ignore_codes:
+                if code in ignore_codes:
                     continue
 
-                if isinstance(m_dict[loc.path][loc.line][m.code],
+                if isinstance(m_dict[loc.path][loc.line][code],
                               defaultdict):
-                    m_dict[loc.path][loc.line][m.code] = m
+                    m_dict[loc.path][loc.line][code] = message
 
     is_test = re.compile(r"^.*test[^{0}]*.py$".format(os.path.sep))
 
@@ -223,13 +228,14 @@ def _run_prospector(m_dict, files_to_lint):
     #                       pylint detects an old style class.
     # - too-many-public-methods: TestCase subclasses by definition have
     #                            lots of methods.
+    test_ignore_codes = [
+        "invalid-name",
+        "super-on-old-class",
+        "too-many-public-methods"
+    ]
     run_prospector_on([f for f in files_to_lint if is_test.match(f)],
                       linter_tools,
-                      ignore_codes=[
-                          "invalid-name",
-                          "super-on-old-class",
-                          "too-many-public-methods"
-                      ])
+                      ignore_codes=test_ignore_codes)
     run_prospector_on([f for f in files_to_lint if not is_test.match(f)],
                       linter_tools + ["frosted", "vulture"])
 
@@ -237,11 +243,11 @@ def _run_prospector(m_dict, files_to_lint):
 def can_run_pychecker():
     """Return true if we can use pychecker."""
     from platform import python_implementation
-    from sys import version_info
+    from sys import version_info  # suppress(PYC70)
     return version_info.major == 2 and python_implementation() == "CPython"
 
 
-def _run_pychecker(m_dict, files_to_lint):
+def _run_pychecker(m_dict, files):
     """Run pychecker.
 
     This tool will not run if we're not on the right python version.
@@ -249,37 +255,39 @@ def _run_pychecker(m_dict, files_to_lint):
     if not can_run_pychecker():
         return
 
-    os.environ["PYCHECKER_DISABLED"] = "True"
-
-    from pychecker import checker
-    from pychecker import pcmodules as pcm
-    from pychecker import warn
-    from pychecker import Config
     from prospector.message import Message, Location
 
-    files = files_to_lint
-    setup_py_file = os.path.realpath(os.path.join(os.getcwd(), "setup.py"))
-    files = [f for f in files if os.path.realpath(f) != setup_py_file]
-    args = ["--only",
-            "--limit",
-            "1000",
-            "-Q",
-            "-8",
-            "-2",
-            "-1",
-            "-a",
-            "--changetypes",
-            "--no-unreachable",
-            "-v"]
-    config, files, supps = Config.setupFromArgs(args + files)
+    def get_pychecker_warnings(files):
+        """Get all pychecker warnings."""
+        os.environ["PYCHECKER_DISABLED"] = "True"
 
-    with _custom_argv([]):
-        with CapturedOutput():
-            checker.processFiles(files, config, supps)
-            check_modules = [m for m in pcm.getPCModules() if m.check]
-            warnings = warn.find(check_modules, config, supps)
+        from pychecker import checker
+        from pychecker import pcmodules as pcm
+        from pychecker import warn
+        from pychecker import Config
 
-    for warning in warnings:
+        setup_py_file = os.path.realpath(os.path.join(os.getcwd(), "setup.py"))
+        files = [f for f in files if os.path.realpath(f) != setup_py_file]
+        args = ["--only",
+                "--limit",
+                "1000",
+                "-Q",
+                "-8",
+                "-2",
+                "-1",
+                "-a",
+                "--changetypes",
+                "--no-unreachable",
+                "-v"] + files
+        config, files, supps = Config.setupFromArgs(args)
+
+        with _custom_argv([]):
+            with CapturedOutput():
+                checker.processFiles(files, config, supps)
+                check_modules = [m for m in pcm.getPCModules() if m.check]
+                return warn.find(check_modules, config, supps)
+
+    for warning in get_pychecker_warnings(files):
         code = "PYC" + str(warning.level)
         path = warning.file
         line = warning.line
@@ -315,6 +323,11 @@ def _run_pyroma(m_dict):
                                                             msg)
 
 
+def _parse_suppressions(suppressions):
+    """Parse a suppressions field and return suppressed codes."""
+    return suppressions[len("suppress("):-1].split(",")
+
+
 class PolysquareLintCommand(setuptools.Command):
 
     """Provide a lint command."""
@@ -327,9 +340,14 @@ class PolysquareLintCommand(setuptools.Command):
         self.exclusions = None
         self.initialize_options()
 
-    def _parse_suppressions(self, suppressions):
-        """Parse a suppressions field and return suppressed codes."""
-        return suppressions[len("suppress("):-1].split(",")
+    def _file_lines(self, filename):
+        """Get lines for filename, caching opened files."""
+        try:
+            return self._file_lines_cache[filename]
+        except KeyError:
+            with open(filename) as python_file:
+                self._file_lines_cache[filename] = python_file.readlines()
+            return self._file_lines_cache[filename]
 
     def _suppressed(self, filename, line, code):
         """Return true if linter error code is suppressed inline.
@@ -339,27 +357,23 @@ class PolysquareLintCommand(setuptools.Command):
         if code in self.suppress_codes:
             return True
 
-        try:
-            self._file_lines_cache[filename]
-        except KeyError:
-            with open(filename) as f:
-                self._file_lines_cache[filename] = f.readlines()
+        lines = self._file_lines(filename)
 
         # File is zero length, cannot be suppressed
-        if len(self._file_lines_cache[filename]) == 0:
+        if len(lines) == 0:
             return False
 
-        relevant_line = self._file_lines_cache[filename][line - 1]
+        relevant_line = lines[line - 1]
 
         try:
             suppressions_function = relevant_line.split("#")[1].strip()
             if suppressions_function.startswith("suppress("):
-                return code in self._parse_suppressions(suppressions_function)
+                return code in _parse_suppressions(suppressions_function)
         except IndexError:
-            above_line = self._file_lines_cache[filename][max(0, line - 2)]
+            above_line = lines[max(0, line - 2)]
             suppressions_function = above_line.strip()[1:].strip()
             if suppressions_function.startswith("suppress("):
-                return code in self._parse_suppressions(suppressions_function)
+                return code in _parse_suppressions(suppressions_function)
         finally:
             pass
 
@@ -376,19 +390,26 @@ class PolysquareLintCommand(setuptools.Command):
 
             return False
 
+        def all_python_files_recursively(directory):
+            """Get all python files in this directory and subdirectories."""
+            py_files = []
+            for root, _, files in os.walk(directory):
+                py_files += fnfilter([os.path.join(root, f) for f in files],
+                                     "*.py")
+
+            return py_files
+
         all_f = []
 
         for external_dir in external_directories:
-            for r, dirs, files in os.walk(external_dir):
-                all_f.extend(fnfilter([os.path.join(r, f) for f in files],
-                                      "*.py"))
+            all_f.extend(all_python_files_recursively(external_dir))
 
-        for package in (self.distribution.packages or list()):
-            for r, dirs, files in os.walk(package):
-                all_f.extend(fnfilter([os.path.join(r, f) for f in files],
-                                      "*.py"))
+        packages = self.distribution.packages or list()
+        for package in packages:
+            all_f.extend(all_python_files_recursively(package))
 
-        for filename in (self.distribution.py_modules or list()):
+        py_modules = self.distribution.py_modules or list()
+        for filename in py_modules:
             all_f.append(os.path.realpath(filename + ".py"))
 
         all_f.append(os.path.join(os.getcwd(), "setup.py"))
@@ -417,7 +438,7 @@ class PolysquareLintCommand(setuptools.Command):
         files_to_lint = self._get_files_to_lint([os.path.join(cwd, "test")])
 
         if len(files_to_lint) == 0:
-            exit(0)
+            sys_exit(0)
             return
 
         with _patched_pep257():
@@ -443,7 +464,7 @@ class PolysquareLintCommand(setuptools.Command):
                                                       profile=False) + "\n")
 
         if len(messages):
-            exit(1)
+            sys_exit(1)
 
     def initialize_options(self):  # suppress(unused-function)
         """Set all options to their initial values."""

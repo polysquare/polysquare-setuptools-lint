@@ -5,24 +5,24 @@
 # See /LICENCE.md for Copyright information
 """Installation and setup script for polysquare-setuptools-lint."""
 
-from polysquare_setuptools_lint import can_run_pychecker, PolysquareLintCommand
+from polysquare_setuptools_lint import PolysquareLintCommand, can_run_pychecker
 
 from setuptools import find_packages
 from setuptools import setup
 
 # Don't install pychecker if we're not on python 2 and CPython
 if can_run_pychecker():
-    additional_linters = ["pychecker"]
-    additional_dependency_links = [
+    ADDITIONAL_LINTERS = ["pychecker"]
+    ADDITIONAL_DEPENDENCY_LINKS = [
         ("http://downloads.sourceforge.net/project/pychecker/pychecker/0.8.19/"
          "pychecker-0.8.19.tar.gz#egg=pychecker-0.8.19")
     ]
 else:
-    additional_linters = list()
-    additional_dependency_links = list()
+    ADDITIONAL_LINTERS = list()
+    ADDITIONAL_DEPENDENCY_LINKS = list()
 
 setup(name="polysquare-setuptools-lint",
-      version="0.0.2",
+      version="0.0.3",
       description="""Provides a 'polysquarelint' command for setuptools""",
       long_description_markdown_filename="README.md",
       author="Sam Spilsbury",
@@ -65,11 +65,12 @@ setup(name="polysquare-setuptools-lint",
           "flake8-import-order",
           "flake8-todo",
           "six"
-      ] + additional_linters,
+      ] + ADDITIONAL_LINTERS,
       dependency_links=[
           ("https://github.com/smspillaz/prospector/tarball/fix-116-builds"
            "#egg=prospector-0.10.1")
-      ] + additional_dependency_links,
+      ] + ADDITIONAL_DEPENDENCY_LINKS,
+      setup_requires=["setuptools-markdown"],
       extras_require={
           "green": [
               "nose",

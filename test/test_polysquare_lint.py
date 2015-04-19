@@ -6,31 +6,47 @@
 # See /LICENCE.md for Copyright information
 """Tests for polysquare-setuptools-lint."""
 
+import doctest
+
+import errno
+
 import os
 
 import shutil
 
-from distutils.errors import DistutilsArgError
+from tempfile import mkdtemp
 
-import doctest
+from distutils.errors import DistutilsArgError  # suppress(I100)
 
 from mock import Mock
 
-from nose_parameterized import parameterized, param
+from nose_parameterized import param, parameterized
+
+import polysquare_setuptools_lint  # suppress(PYC70)
+from polysquare_setuptools_lint import (CapturedOutput,  # suppress(PYC70)
+                                        PolysquareLintCommand,
+                                        can_run_pychecker,
+                                        can_run_pylint)
 
 from setuptools import Distribution
 from setuptools import find_packages as fp
 
-import polysquare_setuptools_lint
-from polysquare_setuptools_lint import (can_run_pychecker,
-                                        can_run_pylint,
-                                        PolysquareLintCommand)
-from polysquare_setuptools_lint import CapturedOutput
-
 from testtools import ExpectedException, TestCase
 from testtools.matchers import (DocTestMatches, MatchesAll, Not)
 
-from tempfile import mkdtemp
+
+def _open_file_force_create(path, mode="w"):
+    """Force creation of file at path and open it."""
+    try:
+        os.makedirs(os.path.dirname(path))
+    except OSError as error:
+        if error.errno != errno.EEXIST:  # suppress(PYC90)
+            raise error
+
+    with open(os.path.join(os.path.dirname(path), "__init__.py"), "w"):
+        pass
+
+    return open(path, mode)
 
 
 class TestPolysquareLintCommand(TestCase):
@@ -44,7 +60,7 @@ class TestPolysquareLintCommand(TestCase):
         self._package_name = "package"
         self._distribution = None
 
-    def setUp(self):
+    def setUp(self):  # suppress(N802)
         """Create a temporary directory and put some files in it."""
         super(TestPolysquareLintCommand, self).setUp()
         self._previous_directory = os.getcwd()
@@ -55,7 +71,7 @@ class TestPolysquareLintCommand(TestCase):
         self.addCleanup(lambda: os.chdir(self._previous_directory))
         self.addCleanup(lambda: shutil.rmtree(project_directory))
 
-        self.patch(polysquare_setuptools_lint, "exit", Mock())
+        self.patch(polysquare_setuptools_lint, "sys_exit", Mock())
 
         with self._open_test_file():
             pass
@@ -68,43 +84,38 @@ class TestPolysquareLintCommand(TestCase):
             # throw an exception.
             f.write("from setuptools import setup\n"
                     "setup()\n")
-            pass
 
         self._distribution = Distribution(dict(name="my-package",
                                                version="0.0.1",
                                                packages=fp(exclude=["test"])))
 
-    def _open_file_force_create(self, path, mode="w"):
-        """Force creation of file at path and open it."""
-        try:
-            os.makedirs(os.path.dirname(path))
-        except OSError:
-            pass
-
-        with open(os.path.join(os.path.dirname(path), "__init__.py"), "w"):
-            pass
-
-        return open(path, mode)
-
     def _open_module_file(self):
         """Open test file and return it as a file object."""
-        return self._open_file_force_create(os.path.join(os.getcwd(),
-                                                         self._package_name,
-                                                         "module.py"),
-                                            "w")
+        return _open_file_force_create(os.path.join(os.getcwd(),
+                                                    self._package_name,
+                                                    "module.py"),
+                                       "w")
 
+    # no-self-use is suppressed here to keep consistency
+    # with _open_module_file.
+    #
+    # suppress(no-self-use)
     def _open_test_file(self):
         """Open test file and return it as a file object."""
-        return self._open_file_force_create(os.path.join(os.getcwd(),
-                                                         "test",
-                                                         "test.py"),
-                                            "w")
+        return _open_file_force_create(os.path.join(os.getcwd(),
+                                                    "test",
+                                                    "test.py"),
+                                       "w")
 
+    # no-self-use is suppressed here to keep consistency
+    # with _open_module_file.
+    #
+    # suppress(no-self-use)
     def _open_setup_file(self):
         """Open setup file and return it as a file object."""
-        return self._open_file_force_create(os.path.join(os.getcwd(),
-                                                         "setup.py"),
-                                            "w")
+        return _open_file_force_create(os.path.join(os.getcwd(),
+                                                    "setup.py"),
+                                       "w")
 
     def _get_command_output(self, set_options_func=lambda d: None):
         """Get output of running lint command with command line arguments."""
@@ -187,7 +198,7 @@ class TestPolysquareLintCommand(TestCase):
 
     @parameterized.expand(PROSPECTOR_NO_TESTS_BUGS)
     def test_dont_find_certain_bugs_on_tests(self, bug_type, script):
-        """Dont find certain bugs on tests."""
+        """Do not find certain bugs on tests."""
         with self._open_test_file() as f:
             f.write(script)
 
