@@ -47,6 +47,7 @@ setup(name="polysquare-setuptools-lint",
       },
       install_requires=[
           "setuptools",
+          "parmap",
           "pep8",
           "pylint",
           "pylint-common",
