@@ -15,6 +15,7 @@ pychecker
 pypy3
 pyroma
 setuptools
+sortable
 subclasses
 subdirectories
 suppress

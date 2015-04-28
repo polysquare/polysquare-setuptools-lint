@@ -6,6 +6,8 @@
 # See /LICENCE.md for Copyright information
 """Provide a setuptools command for linters."""
 
+import multiprocessing
+
 import os
 import os.path
 
@@ -14,7 +16,7 @@ import re
 import sys  # suppress(I100)
 from sys import exit as sys_exit  # suppress(I100,PYC70)
 
-from collections import defaultdict  # suppress(I100)
+from collections import namedtuple  # suppress(I100)
 
 from contextlib import contextmanager
 
@@ -98,11 +100,28 @@ def _patched_pep257():
             pep257.log.info = old_log_info
 
 
-def _run_flake8(m_dict, files_to_lint):
+class _Key(namedtuple("_Key", "file line code")):
+
+    """A sortable class representing a key to store messages in a dict."""
+
+    def __lt__(self, other):
+        """Check if self should sort less than other."""
+        if self.file == other.file:
+            if self.line == other.line:
+                return self.code < other.code
+
+            return self.line < other.line
+
+        return self.file < other.file
+
+
+def _run_flake8(filename):
     """Run flake8."""
     from flake8.engine import get_style_guide
     from pep8 import BaseReport
     from prospector.message import Message, Location
+
+    return_dict = dict()
 
     cwd = os.getcwd()
 
@@ -130,25 +149,26 @@ def _run_flake8(m_dict, files_to_lint):
                                                        line_offset)
 
         def error(self, line, offset, text, check):
-            """Record error and merge with m_dict."""
+            """Record error and store in return_dict."""
             code = super(Flake8MergeReporter, self).error(line,
                                                           offset,
                                                           text,
                                                           check)
 
-            fn = self._current_file  # suppress(invalid-name)
-            if not isinstance(m_dict[fn][line][code], Message):
-                m_dict[fn][line][code] = Message(code,
-                                                 code,
-                                                 Location(fn,
-                                                          None,
-                                                          None,
-                                                          line,
-                                                          offset),
-                                                 text[5:])
+            key = _Key(self._current_file, line, code)
+            return_dict[key] = Message(code,
+                                       code,
+                                       Location(self._current_file,
+                                                None,
+                                                None,
+                                                line,
+                                                offset),
+                                       text[5:])
 
     get_style_guide(reporter=Flake8MergeReporter,
-                    jobs="1").check_files(paths=files_to_lint)
+                    jobs="1").check_files(paths=[filename])
+
+    return return_dict
 
 
 def can_run_pylint():
@@ -162,9 +182,11 @@ def can_run_pylint():
     return not (python_implementation() == "PyPy" and version_info.major == 3)
 
 
-def _run_prospector(m_dict, files_to_lint):
+def _run_prospector(filename):
     """Run prospector."""
     from prospector.run import Prospector, ProspectorConfig
+
+    return_dict = dict()
 
     cwd = os.getcwd()
 
@@ -177,8 +199,8 @@ def _run_prospector(m_dict, files_to_lint):
         "veryhigh"
     ]
 
-    def run_prospector_on(files_to_lint, tools, ignore_codes=None):
-        """Run prospector on files_to_lint, using the specified tools.
+    def run_prospector_on(filename, tools, ignore_codes=None):
+        """Run prospector on filename, using the specified tools.
 
         This function enables us to run different tools on different
         classes of files, which is necessary in the case of tests.
@@ -191,7 +213,7 @@ def _run_prospector(m_dict, files_to_lint):
         # pylint doesn't like absolute paths, so convert to relative.
         all_argv = (prospector_argv +
                     tools_argv +
-                    [os.path.relpath(f) for f in files_to_lint])
+                    [os.path.relpath(filename)])
         with _custom_argv(all_argv):
             prospector = Prospector(ProspectorConfig())
             prospector.execute()
@@ -204,9 +226,8 @@ def _run_prospector(m_dict, files_to_lint):
                 if code in ignore_codes:
                     continue
 
-                if isinstance(m_dict[loc.path][loc.line][code],
-                              defaultdict):
-                    m_dict[loc.path][loc.line][code] = message
+                key = _Key(loc.path, loc.line, code)
+                return_dict[key] = message
 
     is_test = re.compile(r"^.*test[^{0}]*.py$".format(os.path.sep))
 
@@ -233,11 +254,16 @@ def _run_prospector(m_dict, files_to_lint):
         "super-on-old-class",
         "too-many-public-methods"
     ]
-    run_prospector_on([f for f in files_to_lint if is_test.match(f)],
-                      linter_tools,
-                      ignore_codes=test_ignore_codes)
-    run_prospector_on([f for f in files_to_lint if not is_test.match(f)],
-                      linter_tools + ["frosted", "vulture"])
+
+    if is_test.match(filename):
+        run_prospector_on(filename,
+                          linter_tools,
+                          ignore_codes=test_ignore_codes)
+    else:
+        run_prospector_on(filename,
+                          linter_tools + ["frosted", "vulture"])
+
+    return return_dict
 
 
 def can_run_pychecker():
@@ -247,17 +273,19 @@ def can_run_pychecker():
     return version_info.major == 2 and python_implementation() == "CPython"
 
 
-def _run_pychecker(m_dict, files):
+def _run_pychecker(filename):
     """Run pychecker.
 
     This tool will not run if we're not on the right python version.
     """
     if not can_run_pychecker():
-        return
+        return dict()
 
     from prospector.message import Message, Location
 
-    def get_pychecker_warnings(files):
+    return_dict = dict()
+
+    def get_pychecker_warnings(filename):
         """Get all pychecker warnings."""
         os.environ["PYCHECKER_DISABLED"] = "True"
 
@@ -267,7 +295,9 @@ def _run_pychecker(m_dict, files):
         from pychecker import Config
 
         setup_py_file = os.path.realpath(os.path.join(os.getcwd(), "setup.py"))
-        files = [f for f in files if os.path.realpath(f) != setup_py_file]
+        if os.path.realpath(filename) == setup_py_file:
+            return list()
+
         args = ["--only",
                 "--limit",
                 "1000",
@@ -278,49 +308,54 @@ def _run_pychecker(m_dict, files):
                 "-a",
                 "--changetypes",
                 "--no-unreachable",
-                "-v"] + files
+                "-v",
+                filename]
         config, files, supps = Config.setupFromArgs(args)
 
         with _custom_argv([]):
             with CapturedOutput():
                 checker.processFiles(files, config, supps)
                 check_modules = [m for m in pcm.getPCModules() if m.check]
-                return warn.find(check_modules, config, supps)
+                return warn.find(check_modules, config, supps) or list()
 
-    for warning in get_pychecker_warnings(files):
+    for warning in get_pychecker_warnings(filename):
         code = "PYC" + str(warning.level)
         path = warning.file
         line = warning.line
-        if isinstance(m_dict[path][line][code],
-                      defaultdict):
-            m_dict[path][line][code] = Message(code,
-                                               code,
-                                               Location(path,
-                                                        None,
-                                                        None,
-                                                        line,
-                                                        0),
-                                               str(warning.err))
+        key = _Key(path, line, code)
+        return_dict[key] = Message(code,
+                                   code,
+                                   Location(path,
+                                            None,
+                                            None,
+                                            line,
+                                            0),
+                                   str(warning.err))
+
+    return return_dict
 
 
-def _run_pyroma(m_dict):
+def _run_pyroma():
     """Run pyroma."""
     from pyroma import projectdata, ratings
     from prospector.message import Message, Location
+
+    return_dict = dict()
 
     data = projectdata.get_data(os.getcwd())
     all_tests = ratings.ALL_TESTS
     for test in [mod() for mod in [t.__class__ for t in all_tests]]:
         if test.test(data) is False:
             class_name = test.__class__.__name__
-            if isinstance(m_dict["setup.py"][0][class_name],
-                          defaultdict):
-                loc = Location("setup.py", None, None, 0, 0)
-                msg = test.message()
-                m_dict["setup.py"][0][class_name] = Message("pyroma",
-                                                            class_name,
-                                                            loc,
-                                                            msg)
+            key = _Key("setup.py", 0, class_name)
+            loc = Location("setup.py", None, None, 0, 0)
+            msg = test.message()
+            return_dict[key] = Message("pyroma",
+                                       class_name,
+                                       loc,
+                                       msg)
+
+    return return_dict
 
 
 def _parse_suppressions(suppressions):
@@ -328,7 +363,7 @@ def _parse_suppressions(suppressions):
     return suppressions[len("suppress("):-1].split(",")
 
 
-class PolysquareLintCommand(setuptools.Command):
+class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
 
     """Provide a lint command."""
 
@@ -422,40 +457,41 @@ class PolysquareLintCommand(setuptools.Command):
 
     def run(self):  # suppress(unused-function)
         """Run linters."""
+        import parmap
         from prospector.formatters.pylint import PylintFormatter
 
-        def make_default_dict():
-            """Callable to always return a defaultdict."""
-            def constructor():
-                """Make a defaultdict from make_default_dict."""
-                return defaultdict(make_default_dict())
-
-            return constructor
-
-        m_dict = defaultdict(make_default_dict())
-
         cwd = os.getcwd()
-        files_to_lint = self._get_files_to_lint([os.path.join(cwd, "test")])
+        files = self._get_files_to_lint([os.path.join(cwd, "test")])
 
-        if len(files_to_lint) == 0:
+        if len(files) == 0:
             sys_exit(0)
             return
 
+        if len(files) > multiprocessing.cpu_count():
+            mapper = parmap.map
+        else:
+            # suppress(E731)
+            mapper = lambda f, i, *a: [f(*((x, ) + a)) for x in i]
+
         with _patched_pep257():
-            _run_prospector(m_dict, files_to_lint)
-            _run_flake8(m_dict, files_to_lint)
-            _run_pychecker(m_dict, files_to_lint)
-            _run_pyroma(m_dict)
+            keyed_messages = dict()
+            mapped = (mapper(_run_prospector, files) +
+                      mapper(_run_flake8, files) +
+                      mapper(_run_pychecker, files) +
+                      [_run_pyroma()])
+
+            # This will ensure that we don't repeat messages, because
+            # new keys overwrite old ones.
+            for keyed_messages_subset in mapped:
+                keyed_messages.update(keyed_messages_subset)
 
         messages = []
-        for filename in m_dict.values():
-            for line in filename.values():
-                for message in line.values():
-                    if not self._suppressed(message.location.path,
-                                            message.location.line,
-                                            message.code):
-                        message.to_relative_path(cwd)
-                        messages.append(message)
+        for _, message in keyed_messages.items():
+            if not self._suppressed(message.location.path,
+                                    message.location.line,
+                                    message.code):
+                message.to_relative_path(cwd)
+                messages.append(message)
 
         sys.stdout.write(PylintFormatter(dict(),
                                          messages,
