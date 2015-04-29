@@ -22,7 +22,7 @@ else:
     ADDITIONAL_DEPENDENCY_LINKS = list()
 
 setup(name="polysquare-setuptools-lint",
-      version="0.0.4",
+      version="0.0.5",
       description="""Provides a 'polysquarelint' command for setuptools""",
       long_description_markdown_filename="README.md",
       author="Sam Spilsbury",
@@ -71,14 +71,14 @@ setup(name="polysquare-setuptools-lint",
           ("https://github.com/smspillaz/prospector/tarball/fix-116-builds"
            "#egg=prospector-0.10.1")
       ] + ADDITIONAL_DEPENDENCY_LINKS,
-      setup_requires=["setuptools-markdown"],
       extras_require={
           "green": [
               "nose",
               "nose-parameterized",
               "setuptools-green",
               "testtools"
-          ]
+          ],
+          "upload": ["setuptools-markdown"]
       },
       entry_points={
           "distutils.commands": [
