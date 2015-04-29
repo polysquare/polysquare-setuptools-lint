@@ -182,55 +182,49 @@ def can_run_pylint():
     return not (python_implementation() == "PyPy" and version_info.major == 3)
 
 
-def _run_prospector(filename):
-    """Run prospector."""
+def _run_prospector_on(filenames, tools, ignore_codes=None):
+    """Run prospector on filename, using the specified tools.
+
+    This function enables us to run different tools on different
+    classes of files, which is necessary in the case of tests.
+    """
     from prospector.run import Prospector, ProspectorConfig
 
+    assert len(tools) > 0
+
     return_dict = dict()
+    ignore_codes = ignore_codes or list()
 
-    cwd = os.getcwd()
+    # pylint doesn't like absolute paths, so convert to relative.
+    all_argv = (["-F", "-D", "-M", "--no-autodetect", "-s", "veryhigh"] +
+                ("-t " + " -t ".join(tools)).split(" ") +
+                [os.path.relpath(f) for f in filenames])
+    with _custom_argv(all_argv):
+        prospector = Prospector(ProspectorConfig())
+        prospector.execute()
+        messages = prospector.get_messages() or list()
+        for message in messages:
+            message.to_absolute_path(os.getcwd())
+            loc = message.location
+            code = message.code
 
-    prospector_argv = [
-        "-F",
-        "-D",
-        "-M",
-        "--no-autodetect",
-        "-s",
-        "veryhigh"
-    ]
+            if code in ignore_codes:
+                continue
 
-    def run_prospector_on(filename, tools, ignore_codes=None):
-        """Run prospector on filename, using the specified tools.
+            key = _Key(loc.path, loc.line, code)
+            return_dict[key] = message
 
-        This function enables us to run different tools on different
-        classes of files, which is necessary in the case of tests.
-        """
-        assert len(tools) > 0
+    return return_dict
 
-        ignore_codes = ignore_codes or list()
-        tools_argv = ("-t " + " -t ".join(tools)).split(" ")
 
-        # pylint doesn't like absolute paths, so convert to relative.
-        all_argv = (prospector_argv +
-                    tools_argv +
-                    [os.path.relpath(filename)])
-        with _custom_argv(all_argv):
-            prospector = Prospector(ProspectorConfig())
-            prospector.execute()
-            messages = prospector.get_messages() or list()
-            for message in messages:
-                message.to_absolute_path(cwd)
-                loc = message.location
-                code = message.code
-
-                if code in ignore_codes:
-                    continue
-
-                key = _Key(loc.path, loc.line, code)
-                return_dict[key] = message
-
+def _file_is_test(filename):
+    """Return true if file is a test."""
     is_test = re.compile(r"^.*test[^{0}]*.py$".format(os.path.sep))
+    return bool(is_test.match(filename))
 
+
+def _run_prospector(filename):
+    """Run prospector."""
     linter_tools = [
         "dodgy",
         "pep257",
@@ -255,15 +249,13 @@ def _run_prospector(filename):
         "too-many-public-methods"
     ]
 
-    if is_test.match(filename):
-        run_prospector_on(filename,
-                          linter_tools,
-                          ignore_codes=test_ignore_codes)
+    if _file_is_test(filename):
+        return _run_prospector_on([filename],
+                                  linter_tools,
+                                  ignore_codes=test_ignore_codes)
     else:
-        run_prospector_on(filename,
-                          linter_tools + ["frosted", "vulture"])
-
-    return return_dict
+        return _run_prospector_on([filename],
+                                  linter_tools + ["frosted"])
 
 
 def can_run_pychecker():
@@ -475,9 +467,16 @@ class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
 
         with _patched_pep257():
             keyed_messages = dict()
+
+            # Certain checks, such as vulture and pyroma cannot be
+            # meaningfully run in parallel (vulture requires all
+            # files to be passed to the linter, pyroma can only be run
+            # on /setup.py, etc).
+            non_test_files = [f for f in files if not _file_is_test(f)]
             mapped = (mapper(_run_prospector, files) +
                       mapper(_run_flake8, files) +
                       mapper(_run_pychecker, files) +
+                      [_run_prospector_on(non_test_files, ["vulture"])] +
                       [_run_pyroma()])
 
             # This will ensure that we don't repeat messages, because
