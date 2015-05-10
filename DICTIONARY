@@ -6,6 +6,7 @@ PAT2
 Pychecker
 Pylint
 TestCase
+configparser
 flake8
 linter
 linters

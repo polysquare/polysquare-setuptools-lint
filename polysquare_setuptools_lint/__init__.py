@@ -183,6 +183,17 @@ def can_run_pylint():
                 sys.version_info.major == 3)
 
 
+def can_run_frosted():
+    """Return true if we can run frosted.
+
+    Frosted fails on pypy3 as the installer depends on configparser. It
+    also fails on Windows, because it reports file names incorrectly.
+    """
+    return (not (platform.python_implementation() == "PyPy" and
+                 sys.version_info.major == 3) and
+            platform.system() != "Windows")
+
+
 def _run_prospector_on(filenames, tools, ignore_codes=None):
     """Run prospector on filename, using the specified tools.
 
@@ -255,8 +266,10 @@ def _run_prospector(filename):
                                   linter_tools,
                                   ignore_codes=test_ignore_codes)
     else:
-        return _run_prospector_on([filename],
-                                  linter_tools + ["frosted"])
+        if can_run_frosted():
+            linter_tools += ["frosted"]
+
+        return _run_prospector_on([filename], linter_tools)
 
 
 def can_run_pychecker():

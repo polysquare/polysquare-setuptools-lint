@@ -5,21 +5,30 @@
 # See /LICENCE.md for Copyright information
 """Installation and setup script for polysquare-setuptools-lint."""
 
-from polysquare_setuptools_lint import PolysquareLintCommand, can_run_pychecker
+from polysquare_setuptools_lint import (PolysquareLintCommand,
+                                        can_run_frosted,
+                                        can_run_pychecker,
+                                        can_run_pylint)
 
 from setuptools import find_packages
 from setuptools import setup
 
-# Don't install pychecker if we're not on python 2 and CPython
+ADDITIONAL_LINTERS = list()
+ADDITIONAL_DEPENDENCY_LINKS = list()
+
+# Don't install linters unless we can run them on this platform.
 if can_run_pychecker():
-    ADDITIONAL_LINTERS = ["pychecker"]
-    ADDITIONAL_DEPENDENCY_LINKS = [
+    ADDITIONAL_LINTERS += ["pychecker"]
+    ADDITIONAL_DEPENDENCY_LINKS += [
         ("http://downloads.sourceforge.net/project/pychecker/pychecker/0.8.19/"
          "pychecker-0.8.19.tar.gz#egg=pychecker-0.8.19")
     ]
-else:
-    ADDITIONAL_LINTERS = list()
-    ADDITIONAL_DEPENDENCY_LINKS = list()
+
+if can_run_pylint():
+    ADDITIONAL_LINTERS += ["pylint", "pylint-common"]
+
+if can_run_frosted():
+    ADDITIONAL_LINTERS += ["frosted"]
 
 setup(name="polysquare-setuptools-lint",
       version="0.0.5",
@@ -49,10 +58,7 @@ setup(name="polysquare-setuptools-lint",
           "setuptools",
           "parmap",
           "pep8",
-          "pylint",
-          "pylint-common",
           "dodgy",
-          "frosted",
           "mccabe",
           "pep257",
           "pyflakes",
