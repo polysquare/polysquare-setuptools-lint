@@ -11,6 +11,8 @@ import multiprocessing
 import os
 import os.path
 
+import platform
+
 import re
 
 import sys  # suppress(I100)
@@ -177,9 +179,8 @@ def can_run_pylint():
     Pylint fails on pypy3 as pypy3 doesn't implement certain attributes
     on functions.
     """
-    from platform import python_implementation
-    from sys import version_info  # suppress(PYC70)
-    return not (python_implementation() == "PyPy" and version_info.major == 3)
+    return not (platform.python_implementation() == "PyPy" and
+                sys.version_info.major == 3)
 
 
 def _run_prospector_on(filenames, tools, ignore_codes=None):
@@ -260,9 +261,9 @@ def _run_prospector(filename):
 
 def can_run_pychecker():
     """Return true if we can use pychecker."""
-    from platform import python_implementation
-    from sys import version_info  # suppress(PYC70)
-    return version_info.major == 2 and python_implementation() == "CPython"
+    return (sys.version_info.major == 2 and
+            platform.python_implementation() == "CPython" and
+            platform.system() != "Windows")
 
 
 def _run_pychecker(filename):
@@ -279,12 +280,17 @@ def _run_pychecker(filename):
 
     def get_pychecker_warnings(filename):
         """Get all pychecker warnings."""
+        # This is required to prevent pychecker from checking itself
         os.environ["PYCHECKER_DISABLED"] = "True"
 
-        from pychecker import checker
-        from pychecker import pcmodules as pcm
-        from pychecker import warn
-        from pychecker import Config
+        # We don't always install pychecker, in which case this code should
+        # never be reached. However, static analysis tools like pylint
+        # don't know this for sure, so import-error needs to be suppressed
+        # here.
+        from pychecker import checker  # suppress(import-error)
+        from pychecker import pcmodules as pcm  # suppress(import-error)
+        from pychecker import warn  # suppress(import-error)
+        from pychecker import Config  # suppress(import-error)
 
         setup_py_file = os.path.realpath(os.path.join(os.getcwd(), "setup.py"))
         if os.path.realpath(filename) == setup_py_file:
