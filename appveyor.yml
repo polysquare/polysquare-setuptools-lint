@@ -1,0 +1,16 @@
+environment:
+  matrix:
+    - PYTHON: "C:\\Python34"
+    - PYTHON: "C:\\Python27"
+
+install:
+ - "SET PATH=%PYTHON%;%PYTHON%\\Scripts;%PATH%"
+ - python --version
+ - "pip install -e .[polysquarelint]"
+ - "pip install -e .[green]"
+
+build: false
+
+test_script:
+ - "python setup.py polysquarelint --suppress-codes=LongDescription,TestSuite"
+ - "python setup.py green"
