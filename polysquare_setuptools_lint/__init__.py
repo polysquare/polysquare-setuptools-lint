@@ -11,6 +11,8 @@ import multiprocessing
 import os
 import os.path
 
+import platform
+
 import re
 
 import sys  # suppress(I100)
@@ -177,9 +179,19 @@ def can_run_pylint():
     Pylint fails on pypy3 as pypy3 doesn't implement certain attributes
     on functions.
     """
-    from platform import python_implementation
-    from sys import version_info  # suppress(PYC70)
-    return not (python_implementation() == "PyPy" and version_info.major == 3)
+    return not (platform.python_implementation() == "PyPy" and
+                sys.version_info.major == 3)
+
+
+def can_run_frosted():
+    """Return true if we can run frosted.
+
+    Frosted fails on pypy3 as the installer depends on configparser. It
+    also fails on Windows, because it reports file names incorrectly.
+    """
+    return (not (platform.python_implementation() == "PyPy" and
+                 sys.version_info.major == 3) and
+            platform.system() != "Windows")
 
 
 def _run_prospector_on(filenames, tools, ignore_codes=None):
@@ -219,7 +231,7 @@ def _run_prospector_on(filenames, tools, ignore_codes=None):
 
 def _file_is_test(filename):
     """Return true if file is a test."""
-    is_test = re.compile(r"^.*test[^{0}]*.py$".format(os.path.sep))
+    is_test = re.compile(r"^.*test[^{0}]*.py$".format(re.escape(os.path.sep)))
     return bool(is_test.match(filename))
 
 
@@ -254,15 +266,17 @@ def _run_prospector(filename):
                                   linter_tools,
                                   ignore_codes=test_ignore_codes)
     else:
-        return _run_prospector_on([filename],
-                                  linter_tools + ["frosted"])
+        if can_run_frosted():
+            linter_tools += ["frosted"]
+
+        return _run_prospector_on([filename], linter_tools)
 
 
 def can_run_pychecker():
     """Return true if we can use pychecker."""
-    from platform import python_implementation
-    from sys import version_info  # suppress(PYC70)
-    return version_info.major == 2 and python_implementation() == "CPython"
+    return (sys.version_info.major == 2 and
+            platform.python_implementation() == "CPython" and
+            platform.system() != "Windows")
 
 
 def _run_pychecker(filename):
@@ -279,12 +293,17 @@ def _run_pychecker(filename):
 
     def get_pychecker_warnings(filename):
         """Get all pychecker warnings."""
+        # This is required to prevent pychecker from checking itself
         os.environ["PYCHECKER_DISABLED"] = "True"
 
-        from pychecker import checker
-        from pychecker import pcmodules as pcm
-        from pychecker import warn
-        from pychecker import Config
+        # We don't always install pychecker, in which case this code should
+        # never be reached. However, static analysis tools like pylint
+        # don't know this for sure, so import-error needs to be suppressed
+        # here.
+        from pychecker import checker  # suppress(import-error)
+        from pychecker import pcmodules as pcm  # suppress(import-error)
+        from pychecker import warn  # suppress(import-error)
+        from pychecker import Config  # suppress(import-error)
 
         setup_py_file = os.path.realpath(os.path.join(os.getcwd(), "setup.py"))
         if os.path.realpath(filename) == setup_py_file:
@@ -459,7 +478,12 @@ class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
             sys_exit(0)
             return
 
-        if len(files) > multiprocessing.cpu_count():
+        use_multiprocessing = (not os.getenv("DISABLE_MULTIPROCESSING",
+                                             None) and
+                               multiprocessing.cpu_count() < len(files) and
+                               multiprocessing.cpu_count() > 2)
+
+        if use_multiprocessing:
             mapper = parmap.map
         else:
             # suppress(E731)
