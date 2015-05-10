@@ -68,9 +68,13 @@ class TestPolysquareLintCommand(TestCase):
         project_directory = mkdtemp(prefix=os.path.join(os.getcwd(),
                                                         "test_project_dir"))
         os.chdir(project_directory)
-        self.addCleanup(lambda: os.chdir(self._previous_directory))
-        self.addCleanup(lambda: shutil.rmtree(project_directory))
 
+        def cleanup_func():
+            """Change into the previous dir and remove the project dir."""
+            os.chdir(self._previous_directory)
+            shutil.rmtree(project_directory)
+
+        self.addCleanup(cleanup_func)
         self.patch(polysquare_setuptools_lint, "sys_exit", Mock())
 
         with self._open_test_file():
