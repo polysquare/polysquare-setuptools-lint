@@ -85,7 +85,7 @@ class TestPolysquareLintCommand(TestCase):
 
         with self._open_setup_file() as f:
             # Write a very basic /setup.py file so that pyroma doesn't trip
-            # throw an exception.
+            # and throw an exception.
             f.write("from setuptools import setup\n"
                     "setup()\n")
 
