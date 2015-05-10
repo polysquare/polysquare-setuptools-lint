@@ -7,8 +7,7 @@
 
 from polysquare_setuptools_lint import (PolysquareLintCommand,
                                         can_run_frosted,
-                                        can_run_pychecker,
-                                        can_run_pylint)
+                                        can_run_pychecker)
 
 from setuptools import find_packages
 from setuptools import setup
@@ -24,14 +23,11 @@ if can_run_pychecker():
          "pychecker-0.8.19.tar.gz#egg=pychecker-0.8.19")
     ]
 
-if can_run_pylint():
-    ADDITIONAL_LINTERS += ["pylint", "pylint-common"]
-
 if can_run_frosted():
     ADDITIONAL_LINTERS += ["frosted"]
 
 setup(name="polysquare-setuptools-lint",
-      version="0.0.6",
+      version="0.0.7",
       description="""Provides a 'polysquarelint' command for setuptools""",
       long_description_markdown_filename="README.md",
       author="Sam Spilsbury",
@@ -62,6 +58,8 @@ setup(name="polysquare-setuptools-lint",
           "mccabe",
           "pep257",
           "pyflakes",
+          "pylint",
+          "pylint-common",
           "pyroma",
           "vulture",
           "prospector>=0.10.1",
