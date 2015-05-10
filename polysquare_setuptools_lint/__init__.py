@@ -219,7 +219,7 @@ def _run_prospector_on(filenames, tools, ignore_codes=None):
 
 def _file_is_test(filename):
     """Return true if file is a test."""
-    is_test = re.compile(r"^.*test[^{0}]*.py$".format(os.path.sep))
+    is_test = re.compile(r"^.*test[^{0}]*.py$".format(re.escape(os.path.sep)))
     return bool(is_test.match(filename))
 
 
