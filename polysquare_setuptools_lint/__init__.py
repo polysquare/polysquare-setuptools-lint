@@ -478,7 +478,12 @@ class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
             sys_exit(0)
             return
 
-        if len(files) > multiprocessing.cpu_count():
+        use_multiprocessing = (not os.getenv("DISABLE_MULTIPROCESSING",
+                                             None) and
+                               multiprocessing.cpu_count() < len(files) and
+                               multiprocessing.cpu_count() > 2)
+
+        if use_multiprocessing:
             mapper = parmap.map
         else:
             # suppress(E731)
