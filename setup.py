@@ -79,6 +79,7 @@ setup(name="polysquare-setuptools-lint",
       ] + ADDITIONAL_DEPENDENCY_LINKS,
       extras_require={
           "green": [
+              "mock",
               "nose",
               "nose-parameterized",
               "setuptools-green",
