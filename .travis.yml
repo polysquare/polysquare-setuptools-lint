@@ -8,7 +8,7 @@ python:
  - pypy
  - pypy3
 install:
- - eval $(curl -LSs --retry 100 --connect-timeout 3 public-travis-scripts.polysquare.org/bootstrap.py | python /dev/stdin -d container -s setup/python/setup.py -e)
+ - eval $(curl -LSs --retry 100 --connect-timeout 3 public-travis-scripts.polysquare.org/bootstrap.py | python /dev/stdin -d container -s setup/python/setup.py -e bash -p /dev/stdout)
 script:
  - polysquare_run check/python/check.py
 after_success:
@@ -16,7 +16,7 @@ after_success:
 before_cache:
  - polysquare_cleanup
 before_deploy:
- - eval $(curl -LSs public-travis-scripts.polysquare.org/bootstrap.py | python /dev/stdin -d container -s deploy/python/deploy.py -e)
+ - polysquare_run deploy/python/deploy.py
 deploy:
   provider: pypi
   user:
