@@ -27,7 +27,7 @@ if can_run_frosted():
     ADDITIONAL_LINTERS += ["frosted"]
 
 setup(name="polysquare-setuptools-lint",
-      version="0.0.8",
+      version="0.0.9",
       description="""Provides a 'polysquarelint' command for setuptools""",
       long_description_markdown_filename="README.md",
       author="Sam Spilsbury",
