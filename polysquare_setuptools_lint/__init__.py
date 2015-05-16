@@ -460,6 +460,10 @@ class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
 
         all_f.append(os.path.join(os.getcwd(), "setup.py"))
 
+        # Remove duplicates which may exist due to symlinks or repeated
+        # packages found by /setup.py
+        all_f = list(set([os.path.realpath(f) for f in all_f]))
+
         exclusions = [
             "*.egg/*",
             "*.eggs/*"

@@ -21,4 +21,5 @@ subclasses
 subdirectories
 suppress
 suppressions
+symlinks
 unittest
