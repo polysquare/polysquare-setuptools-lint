@@ -296,14 +296,26 @@ def _run_pychecker(filename):
         # This is required to prevent pychecker from checking itself
         os.environ["PYCHECKER_DISABLED"] = "True"
 
+        try:
+            from importlib import reload as rld
+        except ImportError:
+            rld = reload
+
         # We don't always install pychecker, in which case this code should
         # never be reached. However, static analysis tools like pylint
         # don't know this for sure, so import-error needs to be suppressed
         # here.
-        from pychecker import checker  # suppress(import-error)
-        from pychecker import pcmodules as pcm  # suppress(import-error)
-        from pychecker import warn  # suppress(import-error)
-        from pychecker import Config  # suppress(import-error)
+        import pychecker.checker as checker  # suppress(import-error)
+        import pychecker.pcmodules as pcm  # suppress(import-error)
+        import pychecker.warn as warn   # suppress(import-error)
+        import pychecker.Config as Config   # suppress(import-error)
+
+        # Reload all pychecker modules. This reduces the possibility
+        # of false positives due to global variables
+        rld(checker)
+        rld(pcm)
+        rld(warn)
+        rld(Config)
 
         setup_py_file = os.path.realpath(os.path.join(os.getcwd(), "setup.py"))
         if os.path.realpath(filename) == setup_py_file:
