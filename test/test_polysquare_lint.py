@@ -22,10 +22,9 @@ from mock import Mock
 
 from nose_parameterized import param, parameterized
 
-import polysquare_setuptools_lint  # suppress(PYC70)
-from polysquare_setuptools_lint import (CapturedOutput,  # suppress(PYC70)
+import polysquare_setuptools_lint
+from polysquare_setuptools_lint import (CapturedOutput,
                                         PolysquareLintCommand,
-                                        can_run_pychecker,
                                         can_run_pylint)
 
 from setuptools import Distribution
@@ -40,7 +39,7 @@ def _open_file_force_create(path, mode="w"):
     try:
         os.makedirs(os.path.dirname(path))
     except OSError as error:
-        if error.errno != errno.EEXIST:  # suppress(PYC90)
+        if error.errno != errno.EEXIST:
             raise error
 
     with open(os.path.join(os.path.dirname(path), "__init__.py"), "w"):
@@ -210,36 +209,6 @@ class TestPolysquareLintCommand(TestCase):
                         Not(DocTestMatches("...{0}...".format(bug_type),
                             doctest.ELLIPSIS)))
 
-    PYCHECKER_BUGS = [
-        param("PYC70", "from sys import exit\n")
-    ]
-
-    @parameterized.expand(PYCHECKER_BUGS)
-    def test_find_bugs_with_pychecker(self, bug_type, script):
-        """Find bugs with pychecker on package files."""
-        if not can_run_pychecker():
-            self.skipTest("""Pychecker is not available on this python""")
-
-        with self._open_module_file() as f:
-            f.write(script)
-
-        self.assertThat(self._get_command_output(),
-                        DocTestMatches("...{0}...".format(bug_type),
-                                       doctest.ELLIPSIS))
-
-    @parameterized.expand(PYCHECKER_BUGS)
-    def test_find_bugs_with_pychecker_tests(self, bug_type, script):
-        """Find certain bugs with pychecker on test files."""
-        if not can_run_pychecker():
-            self.skipTest("""Pychecker is not available on this python""")
-
-        with self._open_test_file() as f:
-            f.write(script)
-
-        self.assertThat(self._get_command_output(),
-                        DocTestMatches("...{0}...".format(bug_type),
-                                       doctest.ELLIPSIS))
-
     PYROMA_BUGS = [
         param("LongDescription",
               "from setuptools import setup\nsetup(name=\"foo\")")
@@ -292,23 +261,19 @@ class TestPolysquareLintCommand(TestCase):
     def test_inline_suppression_above(self):
         """Inline suppressions above offending line."""
         with self._open_module_file() as module_file:
-            module_file.write("# suppress(F401,PYC70)\nimport sys\n")
+            module_file.write("# suppress(F401)\nimport sys\n")
 
         self.assertThat(self._get_command_output(),
                         MatchesAll(Not(DocTestMatches("...F401...",
-                                                      doctest.ELLIPSIS)),
-                                   Not(DocTestMatches("...PYC70...",
                                                       doctest.ELLIPSIS))))
 
     def test_inline_suppression_aside(self):
         """Inline suppressions aside offending line."""
         with self._open_module_file() as module_file:
-            module_file.write("import sys  # suppress(F401,PYC70)\n")
+            module_file.write("import sys  # suppress(F401)\n")
 
         self.assertThat(self._get_command_output(),
                         MatchesAll(Not(DocTestMatches("...F401...",
-                                                      doctest.ELLIPSIS)),
-                                   Not(DocTestMatches("...PYC70...",
                                                       doctest.ELLIPSIS))))
 
     @parameterized.expand([

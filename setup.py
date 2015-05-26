@@ -6,28 +6,18 @@
 """Installation and setup script for polysquare-setuptools-lint."""
 
 from polysquare_setuptools_lint import (PolysquareLintCommand,
-                                        can_run_frosted,
-                                        can_run_pychecker)
+                                        can_run_frosted)
 
 from setuptools import find_packages
 from setuptools import setup
 
 ADDITIONAL_LINTERS = list()
-ADDITIONAL_DEPENDENCY_LINKS = list()
-
-# Don't install linters unless we can run them on this platform.
-if can_run_pychecker():
-    ADDITIONAL_LINTERS += ["pychecker"]
-    ADDITIONAL_DEPENDENCY_LINKS += [
-        ("http://downloads.sourceforge.net/project/pychecker/pychecker/0.8.19/"
-         "pychecker-0.8.19.tar.gz#egg=pychecker-0.8.19")
-    ]
 
 if can_run_frosted():
     ADDITIONAL_LINTERS += ["frosted"]
 
 setup(name="polysquare-setuptools-lint",
-      version="0.0.9",
+      version="0.0.10",
       description="""Provides a 'polysquarelint' command for setuptools""",
       long_description_markdown_filename="README.md",
       author="Sam Spilsbury",
@@ -74,7 +64,7 @@ setup(name="polysquare-setuptools-lint",
       dependency_links=[
           ("https://github.com/smspillaz/prospector/tarball/fix-116-builds"
            "#egg=prospector-0.10.1")
-      ] + ADDITIONAL_DEPENDENCY_LINKS,
+      ],
       extras_require={
           "green": [
               "mock",

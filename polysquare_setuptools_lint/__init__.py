@@ -1,6 +1,6 @@
 # /polysquare_setuptools_lint/__init__.py
 #
-# Provides a setuptools command for running pychecker, prospector and
+# Provides a setuptools command for running pyroma, prospector and
 # flake8 with maximum settings on all distributed files and tests.
 #
 # See /LICENCE.md for Copyright information
@@ -16,7 +16,7 @@ import platform
 import re
 
 import sys  # suppress(I100)
-from sys import exit as sys_exit  # suppress(I100,PYC70)
+from sys import exit as sys_exit  # suppress(I100)
 
 from collections import namedtuple  # suppress(I100)
 
@@ -167,8 +167,9 @@ def _run_flake8(filename):
                                                 offset),
                                        text[5:])
 
+    flake8_check_paths = [filename]
     get_style_guide(reporter=Flake8MergeReporter,
-                    jobs="1").check_files(paths=[filename])
+                    jobs="1").check_files(paths=flake8_check_paths)
 
     return return_dict
 
@@ -270,92 +271,6 @@ def _run_prospector(filename):
             linter_tools += ["frosted"]
 
         return _run_prospector_on([filename], linter_tools)
-
-
-def can_run_pychecker():
-    """Return true if we can use pychecker."""
-    return (sys.version_info.major == 2 and
-            platform.python_implementation() == "CPython" and
-            platform.system() != "Windows")
-
-
-def _run_pychecker(filename):
-    """Run pychecker.
-
-    This tool will not run if we're not on the right python version.
-    """
-    if not can_run_pychecker():
-        return dict()
-
-    from prospector.message import Message, Location
-
-    return_dict = dict()
-
-    def get_pychecker_warnings(filename):
-        """Get all pychecker warnings."""
-        # This is required to prevent pychecker from checking itself
-        os.environ["PYCHECKER_DISABLED"] = "True"
-
-        try:
-            from importlib import reload as rld
-        except ImportError:
-            rld = reload
-
-        # We don't always install pychecker, in which case this code should
-        # never be reached. However, static analysis tools like pylint
-        # don't know this for sure, so import-error needs to be suppressed
-        # here.
-        import pychecker.checker as checker  # suppress(import-error)
-        import pychecker.pcmodules as pcm  # suppress(import-error)
-        import pychecker.warn as warn   # suppress(import-error)
-        import pychecker.Config as Config   # suppress(import-error)
-
-        # Reload all pychecker modules. This reduces the possibility
-        # of false positives due to global variables
-        rld(checker)
-        rld(pcm)
-        rld(warn)
-        rld(Config)
-
-        setup_py_file = os.path.realpath(os.path.join(os.getcwd(), "setup.py"))
-        if os.path.realpath(filename) == setup_py_file:
-            return list()
-
-        args = ["--only",
-                "--limit",
-                "1000",
-                "-Q",
-                "-8",
-                "-2",
-                "-1",
-                "-a",
-                "--changetypes",
-                "--no-unreachable",
-                "-v",
-                filename]
-        config, files, supps = Config.setupFromArgs(args)
-
-        with _custom_argv([]):
-            with CapturedOutput():
-                checker.processFiles(files, config, supps)
-                check_modules = [m for m in pcm.getPCModules() if m.check]
-                return warn.find(check_modules, config, supps) or list()
-
-    for warning in get_pychecker_warnings(filename):
-        code = "PYC" + str(warning.level)
-        path = warning.file
-        line = warning.line
-        key = _Key(path, line, code)
-        return_dict[key] = Message(code,
-                                   code,
-                                   Location(path,
-                                            None,
-                                            None,
-                                            line,
-                                            0),
-                                   str(warning.err))
-
-    return return_dict
 
 
 def _run_pyroma():
@@ -515,7 +430,6 @@ class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
             non_test_files = [f for f in files if not _file_is_test(f)]
             mapped = (mapper(_run_prospector, files) +
                       mapper(_run_flake8, files) +
-                      mapper(_run_pychecker, files) +
                       [_run_prospector_on(non_test_files, ["vulture"])] +
                       [_run_pyroma()])
 
@@ -563,4 +477,4 @@ class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
     ]
     # suppress(unused-variable)
     description = ("""run linter checks using prospector, """
-                   """flake8 and pychecker""")
+                   """flake8 and pyroma""")
