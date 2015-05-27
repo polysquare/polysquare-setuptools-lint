@@ -3,7 +3,6 @@ CODE2
 CPython
 PAT1
 PAT2
-Pychecker
 Pylint
 TestCase
 configparser
@@ -12,7 +11,6 @@ linter
 linters
 polysquare
 polysquarelint
-pychecker
 pypy3
 pyroma
 setuptools
