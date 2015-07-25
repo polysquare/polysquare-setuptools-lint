@@ -61,10 +61,6 @@ setup(name="polysquare-setuptools-lint",
           "flake8-todo",
           "six"
       ] + ADDITIONAL_LINTERS,
-      dependency_links=[
-          ("https://github.com/smspillaz/prospector/tarball/fix-116-builds"
-           "#egg=prospector-0.10.1")
-      ],
       extras_require={
           "green": [
               "mock",
