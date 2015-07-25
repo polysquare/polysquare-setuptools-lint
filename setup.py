@@ -5,16 +5,26 @@
 # See /LICENCE.md for Copyright information
 """Installation and setup script for polysquare-setuptools-lint."""
 
-from polysquare_setuptools_lint import (PolysquareLintCommand,
-                                        can_run_frosted)
+try:
+    from polysquare_setuptools_lint import (PolysquareLintCommand,
+                                            can_run_frosted)
+    _CMDCLASS = {
+        "polysquarelint": PolysquareLintCommand
+    }
+
+    if can_run_frosted():
+        _ADDITIONAL_LINTERS = ["frosted"]
+    else:
+        _ADDITIONAL_LINTERS = list()
+
+except ImportError:
+    _CMDCLASS = dict()
+    _ADDITIONAL_LINTERS = list()
+
 
 from setuptools import find_packages
 from setuptools import setup
 
-ADDITIONAL_LINTERS = list()
-
-if can_run_frosted():
-    ADDITIONAL_LINTERS += ["frosted"]
 
 setup(name="polysquare-setuptools-lint",
       version="0.0.10",
@@ -37,9 +47,7 @@ setup(name="polysquare-setuptools-lint",
       license="MIT",
       keywords="development linters",
       packages=find_packages(exclude=["test"]),
-      cmdclass={
-          "polysquarelint": PolysquareLintCommand
-      },
+      cmdclass=_CMDCLASS,
       install_requires=[
           "setuptools",
           "jobstamps>=0.0.4",
@@ -61,7 +69,7 @@ setup(name="polysquare-setuptools-lint",
           "flake8-import-order",
           "flake8-todo",
           "six"
-      ] + ADDITIONAL_LINTERS,
+      ] + _ADDITIONAL_LINTERS,
       extras_require={
           "green": [
               "mock",
