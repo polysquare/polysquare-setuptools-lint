@@ -4,6 +4,7 @@ CPython
 PAT1
 PAT2
 Pylint
+STAMP
 TestCase
 configparser
 flake8

@@ -42,6 +42,7 @@ setup(name="polysquare-setuptools-lint",
       },
       install_requires=[
           "setuptools",
+          "jobstamps>=0.0.4",
           "parmap",
           "pep8",
           "dodgy",

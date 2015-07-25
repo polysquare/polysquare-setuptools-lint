@@ -62,6 +62,7 @@ class TestPolysquareLintCommand(TestCase):
     def setUp(self):  # suppress(N802)
         """Create a temporary directory and put some files in it."""
         super(TestPolysquareLintCommand, self).setUp()
+        os.environ["_POLYSQUARE_SETUPTOOLS_LINT_TESTING"] = "1"
         self._previous_directory = os.getcwd()
 
         project_directory = mkdtemp(prefix=os.path.join(os.getcwd(),
@@ -278,7 +279,8 @@ class TestPolysquareLintCommand(TestCase):
 
     @parameterized.expand([
         param("suppress_codes"),
-        param("exclusions")
+        param("exclusions"),
+        param("stamp_directory")
     ])
     def test_passing_non_list_non_string_in_opts_raises(self, attrib):
         """Passing a non-list or non string as an option raises an error."""
