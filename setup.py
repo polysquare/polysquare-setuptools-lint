@@ -27,7 +27,7 @@ from setuptools import setup
 
 
 setup(name="polysquare-setuptools-lint",
-      version="0.0.10",
+      version="0.0.14",
       description="""Provides a 'polysquarelint' command for setuptools""",
       long_description_markdown_filename="README.md",
       author="Sam Spilsbury",
