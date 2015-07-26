@@ -5,19 +5,31 @@
 # See /LICENCE.md for Copyright information
 """Installation and setup script for polysquare-setuptools-lint."""
 
-from polysquare_setuptools_lint import (PolysquareLintCommand,
-                                        can_run_frosted)
+try:
+    from polysquare_setuptools_lint import PolysquareLintCommand
+    _CMDCLASS = {
+        "polysquarelint": PolysquareLintCommand
+    }
 
-from setuptools import find_packages
-from setuptools import setup
+except ImportError:
+    _CMDCLASS = dict()
 
-ADDITIONAL_LINTERS = list()
+import platform
 
-if can_run_frosted():
-    ADDITIONAL_LINTERS += ["frosted"]
+import sys
+
+from setuptools import (find_packages, setup)
+
+if (not (platform.python_implementation() == "PyPy" and
+         sys.version_info.major == 3) and
+        platform.system() != "Windows"):
+    _ADDITIONAL_LINTERS = ["frosted"]
+else:
+    _ADDITIONAL_LINTERS = list()
+
 
 setup(name="polysquare-setuptools-lint",
-      version="0.0.10",
+      version="0.0.15",
       description="""Provides a 'polysquarelint' command for setuptools""",
       long_description_markdown_filename="README.md",
       author="Sam Spilsbury",
@@ -37,18 +49,16 @@ setup(name="polysquare-setuptools-lint",
       license="MIT",
       keywords="development linters",
       packages=find_packages(exclude=["test"]),
-      cmdclass={
-          "polysquarelint": PolysquareLintCommand
-      },
+      cmdclass=_CMDCLASS,
       install_requires=[
           "setuptools",
+          "jobstamps>=0.0.6",
           "parmap",
           "pep8",
           "dodgy",
           "mccabe",
           "pep257",
           "pyflakes",
-          "pylint",
           "pylint-common",
           "pyroma",
           "vulture",
@@ -60,11 +70,7 @@ setup(name="polysquare-setuptools-lint",
           "flake8-import-order",
           "flake8-todo",
           "six"
-      ] + ADDITIONAL_LINTERS,
-      dependency_links=[
-          ("https://github.com/smspillaz/prospector/tarball/fix-116-builds"
-           "#egg=prospector-0.10.1")
-      ],
+      ] + _ADDITIONAL_LINTERS,
       extras_require={
           "green": [
               "mock",

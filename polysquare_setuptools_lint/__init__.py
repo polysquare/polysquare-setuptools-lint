@@ -6,6 +6,8 @@
 # See /LICENCE.md for Copyright information
 """Provide a setuptools command for linters."""
 
+import hashlib
+
 import multiprocessing
 
 import os
@@ -18,11 +20,15 @@ import re
 import sys  # suppress(I100)
 from sys import exit as sys_exit  # suppress(I100)
 
+import tempfile  # suppress(I100)
+
 from collections import namedtuple  # suppress(I100)
 
 from contextlib import contextmanager
 
 from distutils.errors import DistutilsArgError
+
+from jobstamps import jobstamp
 
 import setuptools
 
@@ -102,6 +108,30 @@ def _patched_pep257():
             pep257.log.info = old_log_info
 
 
+def _stamped(func, *args, **kwargs):
+    """Run through jobstamps.run, except if testing."""
+    if os.environ.get("_POLYSQUARE_SETUPTOOLS_LINT_TESTING", None):
+        kwargs = {k: v for k, v in kwargs.items()
+                  if not k.startswith("jobstamps_")}
+        return func(*args, **kwargs)
+    else:
+        return jobstamp.run(func, *args, **kwargs)
+
+
+def _stamped_deps(stamp_directory, func, dependencies, *args, **kwargs):
+    """Run func, assumed to have dependencies as its first argument."""
+    if not isinstance(dependencies, list):
+        jobstamps_dependencies = [dependencies]
+    else:
+        jobstamps_dependencies = dependencies
+
+    kwargs.update({
+        "jobstamps_cache_output_directory": stamp_directory,
+        "jobstamps_dependencies": jobstamps_dependencies
+    })
+    return _stamped(func, dependencies, *args, **kwargs)
+
+
 class _Key(namedtuple("_Key", "file line code")):
 
     """A sortable class representing a key to store messages in a dict."""
@@ -117,61 +147,71 @@ class _Key(namedtuple("_Key", "file line code")):
         return self.file < other.file
 
 
-def _run_flake8(filename):
-    """Run flake8."""
-    from flake8.engine import get_style_guide
-    from pep8 import BaseReport
-    from prospector.message import Message, Location
+def _run_flake8_stamped(stamp_file_name):
+    """Return function that runs flake8, cached by stamp_file_name."""
+    def _run_flake8(filename):
+        """Run flake8, cached by stamp_file_name."""
+        def _run_flake8_internal(filename):
+            """Run flake8."""
+            from flake8.engine import get_style_guide
+            from pep8 import BaseReport
+            from prospector.message import Message, Location
 
-    return_dict = dict()
+            return_dict = dict()
 
-    cwd = os.getcwd()
+            cwd = os.getcwd()
 
-    class Flake8MergeReporter(BaseReport):
+            class Flake8MergeReporter(BaseReport):
 
-        """An implementation of pep8.BaseReport merging results.
+                """An implementation of pep8.BaseReport merging results.
 
-        This implementation merges results from the flake8 report
-        into the prospector report created earlier.
-        """
+                This implementation merges results from the flake8 report
+                into the prospector report created earlier.
+                """
 
-        def __init__(self, options):
-            """Initialize this Flake8MergeReporter."""
-            super(Flake8MergeReporter, self).__init__(options)
-            self._current_file = ""
+                def __init__(self, options):
+                    """Initialize this Flake8MergeReporter."""
+                    super(Flake8MergeReporter, self).__init__(options)
+                    self._current_file = ""
 
-        def init_file(self, filename, lines, expected, line_offset):
-            """Start processing filename."""
-            self._current_file = os.path.realpath(os.path.join(cwd,
-                                                               filename))
+                def init_file(self, filename, lines, expected, line_offset):
+                    """Start processing filename."""
+                    relative_path = os.path.join(cwd, filename)
+                    self._current_file = os.path.realpath(relative_path)
 
-            super(Flake8MergeReporter, self).init_file(filename,
-                                                       lines,
-                                                       expected,
-                                                       line_offset)
+                    super(Flake8MergeReporter, self).init_file(filename,
+                                                               lines,
+                                                               expected,
+                                                               line_offset)
 
-        def error(self, line, offset, text, check):
-            """Record error and store in return_dict."""
-            code = super(Flake8MergeReporter, self).error(line,
-                                                          offset,
-                                                          text,
-                                                          check)
+                def error(self, line, offset, text, check):
+                    """Record error and store in return_dict."""
+                    code = super(Flake8MergeReporter, self).error(line,
+                                                                  offset,
+                                                                  text,
+                                                                  check)
 
-            key = _Key(self._current_file, line, code)
-            return_dict[key] = Message(code,
-                                       code,
-                                       Location(self._current_file,
-                                                None,
-                                                None,
-                                                line,
-                                                offset),
-                                       text[5:])
+                    key = _Key(self._current_file, line, code)
+                    return_dict[key] = Message(code,
+                                               code,
+                                               Location(self._current_file,
+                                                        None,
+                                                        None,
+                                                        line,
+                                                        offset),
+                                               text[5:])
 
-    flake8_check_paths = [filename]
-    get_style_guide(reporter=Flake8MergeReporter,
-                    jobs="1").check_files(paths=flake8_check_paths)
+            flake8_check_paths = [filename]
+            get_style_guide(reporter=Flake8MergeReporter,
+                            jobs="1").check_files(paths=flake8_check_paths)
 
-    return return_dict
+            return return_dict
+
+        return _stamped_deps(stamp_file_name,
+                             _run_flake8_internal,
+                             filename)
+
+    return _run_flake8
 
 
 def can_run_pylint():
@@ -236,44 +276,52 @@ def _file_is_test(filename):
     return bool(is_test.match(filename))
 
 
-def _run_prospector(filename):
-    """Run prospector."""
-    linter_tools = [
-        "dodgy",
-        "pep257",
-        "pep8",
-        "pyflakes"
-    ]
+def _run_prospector_stamped(stamp_file_name):
+    """Return function to run prospector, cached by stamp_file_name."""
+    def _run_prospector(filename):
+        """Run prospector."""
+        linter_tools = [
+            "dodgy",
+            "pep257",
+            "pep8",
+            "pyflakes"
+        ]
 
-    if can_run_pylint():
-        linter_tools.append("pylint")
+        if can_run_pylint():
+            linter_tools.append("pylint")
 
-    # Run prospector on tests. There are some errors we don't care about:
-    # - invalid-name: This is often triggered because test method names can
-    #                 be quite long. Descriptive test method names are good,
-    #                 so disable this warning.
-    # - super-on-old-class: unittest.TestCase is a new style class, but
-    #                       pylint detects an old style class.
-    # - too-many-public-methods: TestCase subclasses by definition have
-    #                            lots of methods.
-    test_ignore_codes = [
-        "invalid-name",
-        "super-on-old-class",
-        "too-many-public-methods"
-    ]
+        # Run prospector on tests. There are some errors we don't care about:
+        # - invalid-name: This is often triggered because test method names
+        #                 can be quite long. Descriptive test method names are
+        #                 good, so disable this warning.
+        # - super-on-old-class: unittest.TestCase is a new style class, but
+        #                       pylint detects an old style class.
+        # - too-many-public-methods: TestCase subclasses by definition have
+        #                            lots of methods.
+        test_ignore_codes = [
+            "invalid-name",
+            "super-on-old-class",
+            "too-many-public-methods"
+        ]
 
-    if _file_is_test(filename):
-        return _run_prospector_on([filename],
-                                  linter_tools,
-                                  ignore_codes=test_ignore_codes)
-    else:
-        if can_run_frosted():
-            linter_tools += ["frosted"]
+        kwargs = dict()
 
-        return _run_prospector_on([filename], linter_tools)
+        if _file_is_test(filename):
+            kwargs["ignore_codes"] = test_ignore_codes
+        else:
+            if can_run_frosted():
+                linter_tools += ["frosted"]
+
+        return _stamped_deps(stamp_file_name,
+                             _run_prospector_on,
+                             [filename],
+                             linter_tools,
+                             **kwargs)
+
+    return _run_prospector
 
 
-def _run_pyroma():
+def _run_pyroma(setup_file):
     """Run pyroma."""
     from pyroma import projectdata, ratings
     from prospector.message import Message, Location
@@ -285,8 +333,8 @@ def _run_pyroma():
     for test in [mod() for mod in [t.__class__ for t in all_tests]]:
         if test.test(data) is False:
             class_name = test.__class__.__name__
-            key = _Key("setup.py", 0, class_name)
-            loc = Location("setup.py", None, None, 0, 0)
+            key = _Key(setup_file, 0, class_name)
+            loc = Location(setup_file, None, None, 0, 0)
             msg = test.message()
             return_dict[key] = Message("pyroma",
                                        class_name,
@@ -309,6 +357,7 @@ class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
         """Initialize this class' instance variables."""
         setuptools.Command.__init__(self, *args, **kwargs)
         self._file_lines_cache = None
+        self.stamp_directory = None
         self.suppress_codes = None
         self.exclusions = None
         self.initialize_options()
@@ -428,10 +477,17 @@ class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
             # files to be passed to the linter, pyroma can only be run
             # on /setup.py, etc).
             non_test_files = [f for f in files if not _file_is_test(f)]
-            mapped = (mapper(_run_prospector, files) +
-                      mapper(_run_flake8, files) +
-                      [_run_prospector_on(non_test_files, ["vulture"])] +
-                      [_run_pyroma()])
+            mapped = (mapper(_run_prospector_stamped(self.stamp_directory),
+                             files) +
+                      mapper(_run_flake8_stamped(self.stamp_directory),
+                             files) +
+                      [_stamped_deps(self.stamp_directory,
+                                     _run_prospector_on,
+                                     non_test_files,
+                                     ["vulture"])] +
+                      [_stamped_deps(self.stamp_directory,
+                                     _run_pyroma,
+                                     "setup.py")])
 
             # This will ensure that we don't repeat messages, because
             # new keys overwrite old ones.
@@ -460,6 +516,7 @@ class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
         self._file_lines_cache = dict()
         self.suppress_codes = list()
         self.exclusions = list()
+        self.stamp_directory = ""
 
     def finalize_options(self):  # suppress(unused-function)
         """Finalize all options."""
@@ -469,11 +526,25 @@ class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
                 setattr(self, attribute, getattr(self, attribute).split(","))
 
             if not isinstance(getattr(self, attribute), list):
-                raise DistutilsArgError("--{0} must be a list".format(option))
+                raise DistutilsArgError("""--{0} must be """
+                                        """a list""".format(option))
+
+        if not isinstance(self.stamp_directory, str):
+            raise DistutilsArgError("""--stamp-directory=STAMP, STAMP """
+                                    """must be a string""")
+
+        if self.stamp_directory == "":
+            dir_hash = hashlib.md5(os.getcwd().encode("utf-8")).hexdigest()
+            self.stamp_directory = os.path.join(tempfile.gettempdir(),
+                                                "jobstamps",
+                                                "polysquare_setuptools_lint",
+                                                dir_hash)
 
     user_options = [  # suppress(unused-variable)
-        ("suppress-codes=", None, "Error codes to suppress"),
-        ("exclusions=", None, "Glob expressions of files to exclude")
+        ("suppress-codes=", None, """Error codes to suppress"""),
+        ("exclusions=", None, """Glob expressions of files to exclude"""),
+        ("stamp-directory=", None,
+         """Where to store stamps of completed jobs""")
     ]
     # suppress(unused-variable)
     description = ("""run linter checks using prospector, """
