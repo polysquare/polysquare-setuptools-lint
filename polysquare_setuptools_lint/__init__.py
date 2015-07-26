@@ -147,71 +147,68 @@ class _Key(namedtuple("_Key", "file line code")):
         return self.file < other.file
 
 
-def _run_flake8_stamped(stamp_file_name):
-    """Return function that runs flake8, cached by stamp_file_name."""
-    def _run_flake8(filename):
-        """Run flake8, cached by stamp_file_name."""
-        def _run_flake8_internal(filename):
-            """Run flake8."""
-            from flake8.engine import get_style_guide
-            from pep8 import BaseReport
-            from prospector.message import Message, Location
+def _run_flake8_internal(filename):
+    """Run flake8."""
+    from flake8.engine import get_style_guide
+    from pep8 import BaseReport
+    from prospector.message import Message, Location
 
-            return_dict = dict()
+    return_dict = dict()
 
-            cwd = os.getcwd()
+    cwd = os.getcwd()
 
-            class Flake8MergeReporter(BaseReport):
+    class Flake8MergeReporter(BaseReport):
 
-                """An implementation of pep8.BaseReport merging results.
+        """An implementation of pep8.BaseReport merging results.
 
-                This implementation merges results from the flake8 report
-                into the prospector report created earlier.
-                """
+        This implementation merges results from the flake8 report
+        into the prospector report created earlier.
+        """
 
-                def __init__(self, options):
-                    """Initialize this Flake8MergeReporter."""
-                    super(Flake8MergeReporter, self).__init__(options)
-                    self._current_file = ""
+        def __init__(self, options):
+            """Initialize this Flake8MergeReporter."""
+            super(Flake8MergeReporter, self).__init__(options)
+            self._current_file = ""
 
-                def init_file(self, filename, lines, expected, line_offset):
-                    """Start processing filename."""
-                    relative_path = os.path.join(cwd, filename)
-                    self._current_file = os.path.realpath(relative_path)
+        def init_file(self, filename, lines, expected, line_offset):
+            """Start processing filename."""
+            relative_path = os.path.join(cwd, filename)
+            self._current_file = os.path.realpath(relative_path)
 
-                    super(Flake8MergeReporter, self).init_file(filename,
-                                                               lines,
-                                                               expected,
-                                                               line_offset)
+            super(Flake8MergeReporter, self).init_file(filename,
+                                                       lines,
+                                                       expected,
+                                                       line_offset)
 
-                def error(self, line, offset, text, check):
-                    """Record error and store in return_dict."""
-                    code = super(Flake8MergeReporter, self).error(line,
-                                                                  offset,
-                                                                  text,
-                                                                  check)
+        def error(self, line, offset, text, check):
+            """Record error and store in return_dict."""
+            code = super(Flake8MergeReporter, self).error(line,
+                                                          offset,
+                                                          text,
+                                                          check)
 
-                    key = _Key(self._current_file, line, code)
-                    return_dict[key] = Message(code,
-                                               code,
-                                               Location(self._current_file,
-                                                        None,
-                                                        None,
-                                                        line,
-                                                        offset),
-                                               text[5:])
+            key = _Key(self._current_file, line, code)
+            return_dict[key] = Message(code,
+                                       code,
+                                       Location(self._current_file,
+                                                None,
+                                                None,
+                                                line,
+                                                offset),
+                                       text[5:])
 
-            flake8_check_paths = [filename]
-            get_style_guide(reporter=Flake8MergeReporter,
-                            jobs="1").check_files(paths=flake8_check_paths)
+    flake8_check_paths = [filename]
+    get_style_guide(reporter=Flake8MergeReporter,
+                    jobs="1").check_files(paths=flake8_check_paths)
 
-            return return_dict
+    return return_dict
 
-        return _stamped_deps(stamp_file_name,
-                             _run_flake8_internal,
-                             filename)
 
-    return _run_flake8
+def _run_flake8(filename, stamp_file_name):
+    """Run flake8, cached by stamp_file_name."""
+    return _stamped_deps(stamp_file_name,
+                         _run_flake8_internal,
+                         filename)
 
 
 def can_run_pylint():
@@ -276,49 +273,45 @@ def _file_is_test(filename):
     return bool(is_test.match(filename))
 
 
-def _run_prospector_stamped(stamp_file_name):
-    """Return function to run prospector, cached by stamp_file_name."""
-    def _run_prospector(filename):
-        """Run prospector."""
-        linter_tools = [
-            "dodgy",
-            "pep257",
-            "pep8",
-            "pyflakes"
-        ]
+def _run_prospector(filename, stamp_file_name):
+    """Run prospector."""
+    linter_tools = [
+        "dodgy",
+        "pep257",
+        "pep8",
+        "pyflakes"
+    ]
 
-        if can_run_pylint():
-            linter_tools.append("pylint")
+    if can_run_pylint():
+        linter_tools.append("pylint")
 
-        # Run prospector on tests. There are some errors we don't care about:
-        # - invalid-name: This is often triggered because test method names
-        #                 can be quite long. Descriptive test method names are
-        #                 good, so disable this warning.
-        # - super-on-old-class: unittest.TestCase is a new style class, but
-        #                       pylint detects an old style class.
-        # - too-many-public-methods: TestCase subclasses by definition have
-        #                            lots of methods.
-        test_ignore_codes = [
-            "invalid-name",
-            "super-on-old-class",
-            "too-many-public-methods"
-        ]
+    # Run prospector on tests. There are some errors we don't care about:
+    # - invalid-name: This is often triggered because test method names
+    #                 can be quite long. Descriptive test method names are
+    #                 good, so disable this warning.
+    # - super-on-old-class: unittest.TestCase is a new style class, but
+    #                       pylint detects an old style class.
+    # - too-many-public-methods: TestCase subclasses by definition have
+    #                            lots of methods.
+    test_ignore_codes = [
+        "invalid-name",
+        "super-on-old-class",
+        "too-many-public-methods"
+    ]
 
-        kwargs = dict()
+    kwargs = dict()
 
-        if _file_is_test(filename):
-            kwargs["ignore_codes"] = test_ignore_codes
-        else:
-            if can_run_frosted():
-                linter_tools += ["frosted"]
+    if _file_is_test(filename):
+        kwargs["ignore_codes"] = test_ignore_codes
+    else:
+        if can_run_frosted():
+            linter_tools += ["frosted"]
 
-        return _stamped_deps(stamp_file_name,
-                             _run_prospector_on,
-                             [filename],
-                             linter_tools,
-                             **kwargs)
-
-    return _run_prospector
+    return _stamped_deps(stamp_file_name,
+                         _run_prospector_on,
+                         [filename],
+                         linter_tools,
+                         **kwargs)
 
 
 def _run_pyroma(setup_file):
@@ -477,10 +470,8 @@ class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
             # files to be passed to the linter, pyroma can only be run
             # on /setup.py, etc).
             non_test_files = [f for f in files if not _file_is_test(f)]
-            mapped = (mapper(_run_prospector_stamped(self.stamp_directory),
-                             files) +
-                      mapper(_run_flake8_stamped(self.stamp_directory),
-                             files) +
+            mapped = (mapper(_run_prospector, files, self.stamp_directory) +
+                      mapper(_run_flake8, files, self.stamp_directory) +
                       [_stamped_deps(self.stamp_directory,
                                      _run_prospector_on,
                                      non_test_files,
