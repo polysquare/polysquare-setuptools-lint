@@ -29,7 +29,7 @@ else:
 
 
 setup(name="polysquare-setuptools-lint",
-      version="0.0.17",
+      version="0.0.18",
       description="""Provides a 'polysquarelint' command for setuptools""",
       long_description_markdown_filename="README.md",
       author="Sam Spilsbury",
@@ -62,6 +62,7 @@ setup(name="polysquare-setuptools-lint",
           "pylint-common",
           "pyroma",
           "vulture",
+          "logilab==0.63.0",
           "prospector>=0.10.1",
           "flake8==2.3.0",
           "flake8-blind-except",
