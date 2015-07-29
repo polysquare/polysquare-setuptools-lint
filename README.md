@@ -12,8 +12,6 @@ pyroma and pylint.
 
 ## Usage
 
-    $ python setup.py polysquarelint --help
-
     Options for 'PolysquareLintCommand' command:
       --suppress-codes   Error codes to suppress
       --exclusions       Glob expressions of files to exclude

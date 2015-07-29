@@ -1,11 +1,14 @@
+AppVeyor
 CODE1
 CODE2
 CPython
 PAT1
 PAT2
 Pylint
+PyPI
 STAMP
 TestCase
+codes
 configparser
 flake8
 linter
