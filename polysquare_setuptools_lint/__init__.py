@@ -437,7 +437,7 @@ class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
             "*.egg/*",
             "*.eggs/*"
         ] + self.exclusions
-        return [f for f in all_f if not is_excluded(f, exclusions)]
+        return sorted([f for f in all_f if not is_excluded(f, exclusions)])
 
     def run(self):  # suppress(unused-function)
         """Run linters."""
