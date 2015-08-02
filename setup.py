@@ -52,7 +52,7 @@ setup(name="polysquare-setuptools-lint",
       cmdclass=_CMDCLASS,
       install_requires=[
           "setuptools",
-          "jobstamps>=0.0.11",
+          "jobstamps>=0.0.16",
           "parmap",
           "pep8",
           "dodgy",

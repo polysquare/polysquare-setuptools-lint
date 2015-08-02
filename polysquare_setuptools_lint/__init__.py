@@ -64,16 +64,6 @@ def _patched_pep257():
             pep257.log.info = old_log_info
 
 
-def _stamped(func, *args, **kwargs):
-    """Run through jobstamps.run, except if testing."""
-    if os.environ.get("_POLYSQUARE_SETUPTOOLS_LINT_TESTING", None):
-        kwargs = {k: v for k, v in kwargs.items()
-                  if not k.startswith("jobstamps_")}
-        return func(*args, **kwargs)
-    else:
-        return jobstamp.run(func, *args, **kwargs)
-
-
 def _stamped_deps(stamp_directory, func, dependencies, *args, **kwargs):
     """Run func, assumed to have dependencies as its first argument."""
     if not isinstance(dependencies, list):
@@ -85,7 +75,7 @@ def _stamped_deps(stamp_directory, func, dependencies, *args, **kwargs):
         "jobstamps_cache_output_directory": stamp_directory,
         "jobstamps_dependencies": jobstamps_dependencies
     })
-    return _stamped(func, dependencies, *args, **kwargs)
+    return jobstamp.run(func, dependencies, *args, **kwargs)
 
 
 class _Key(namedtuple("_Key", "file line code")):

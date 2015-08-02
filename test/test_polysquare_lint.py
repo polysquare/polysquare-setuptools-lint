@@ -63,7 +63,7 @@ class TestPolysquareLintCommand(TestCase):
     def setUp(self):  # suppress(N802)
         """Create a temporary directory and put some files in it."""
         super(TestPolysquareLintCommand, self).setUp()
-        os.environ["_POLYSQUARE_SETUPTOOLS_LINT_TESTING"] = "1"
+        os.environ["JOBSTAMPS_DISABLED"] = "1"
         self._previous_directory = os.getcwd()
 
         project_directory = mkdtemp(prefix=os.path.join(os.getcwd(),
