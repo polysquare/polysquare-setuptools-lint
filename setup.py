@@ -74,6 +74,7 @@ setup(name="polysquare-setuptools-lint",
       ] + _ADDITIONAL_LINTERS,
       extras_require={
           "green": [
+              "iocapture",
               "mock",
               "nose",
               "nose-parameterized",

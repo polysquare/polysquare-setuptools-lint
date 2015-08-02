@@ -18,13 +18,14 @@ from tempfile import mkdtemp
 
 from distutils.errors import DistutilsArgError  # suppress(I100)
 
+from iocapture import capture
+
 from mock import Mock
 
 from nose_parameterized import param, parameterized
 
 import polysquare_setuptools_lint
-from polysquare_setuptools_lint import (CapturedOutput,
-                                        PolysquareLintCommand,
+from polysquare_setuptools_lint import (PolysquareLintCommand,
                                         can_run_pylint)
 
 from setuptools import Distribution
@@ -123,13 +124,13 @@ class TestPolysquareLintCommand(TestCase):
 
     def _get_command_output(self, set_options_func=lambda d: None):
         """Get output of running lint command with command line arguments."""
-        with CapturedOutput() as captured:
+        with capture() as captured:
             cmd = PolysquareLintCommand(self._distribution)
             set_options_func(cmd)
             cmd.ensure_finalized()
             cmd.run()
 
-        return captured.stdout
+            return captured.stdout
 
     FLAKE8_BUGS = [
         param("F401", "import sys\n"),
