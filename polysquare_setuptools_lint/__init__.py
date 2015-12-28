@@ -306,8 +306,12 @@ class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
         try:
             return self._file_lines_cache[filename]
         except KeyError:
-            with open(filename) as python_file:
-                self._file_lines_cache[filename] = python_file.readlines()
+            if os.path.isfile(filename):
+                with open(filename) as python_file:
+                    self._file_lines_cache[filename] = python_file.readlines()
+            else:
+                self._file_lines_cache[filename] = ""
+
             return self._file_lines_cache[filename]
 
     def _suppressed(self, filename, line, code):
