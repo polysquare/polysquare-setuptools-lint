@@ -16,7 +16,7 @@ import shutil
 
 from tempfile import mkdtemp
 
-from distutils.errors import DistutilsArgError  # suppress(I100)
+from distutils.errors import DistutilsArgError  # suppress(I100,import-error)
 
 from iocapture import capture
 
@@ -50,7 +50,6 @@ def _open_file_force_create(path, mode="w"):
 
 
 class TestPolysquareLintCommand(TestCase):
-
     """Tests for the PolysquareLintCommand class."""
 
     def __init__(self, *args, **kwargs):

@@ -26,7 +26,7 @@ from collections import namedtuple  # suppress(I100)
 
 from contextlib import contextmanager
 
-from distutils.errors import DistutilsArgError
+from distutils.errors import DistutilsArgError  # suppress(import-error)
 
 from jobstamps import jobstamp
 
@@ -79,7 +79,6 @@ def _stamped_deps(stamp_directory, func, dependencies, *args, **kwargs):
 
 
 class _Key(namedtuple("_Key", "file line code")):
-
     """A sortable class representing a key to store messages in a dict."""
 
     def __lt__(self, other):
@@ -104,7 +103,6 @@ def _run_flake8_internal(filename):
     cwd = os.getcwd()
 
     class Flake8MergeReporter(BaseReport):
-
         """An implementation of pep8.BaseReport merging results.
 
         This implementation merges results from the flake8 report
@@ -289,7 +287,6 @@ def _parse_suppressions(suppressions):
 
 
 class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
-
     """Provide a lint command."""
 
     def __init__(self, *args, **kwargs):
@@ -306,8 +303,12 @@ class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
         try:
             return self._file_lines_cache[filename]
         except KeyError:
-            with open(filename) as python_file:
-                self._file_lines_cache[filename] = python_file.readlines()
+            if os.path.isfile(filename):
+                with open(filename) as python_file:
+                    self._file_lines_cache[filename] = python_file.readlines()
+            else:
+                self._file_lines_cache[filename] = ""
+
             return self._file_lines_cache[filename]
 
     def _suppressed(self, filename, line, code):
@@ -323,6 +324,10 @@ class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
         # File is zero length, cannot be suppressed
         if len(lines) == 0:
             return False
+
+        # Handle errors which appear after the end of the document.
+        while line > len(lines) - 1:
+            line = line - 1
 
         relevant_line = lines[line - 1]
 
