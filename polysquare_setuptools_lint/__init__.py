@@ -79,7 +79,6 @@ def _stamped_deps(stamp_directory, func, dependencies, *args, **kwargs):
 
 
 class _Key(namedtuple("_Key", "file line code")):
-
     """A sortable class representing a key to store messages in a dict."""
 
     def __lt__(self, other):
@@ -104,7 +103,6 @@ def _run_flake8_internal(filename):
     cwd = os.getcwd()
 
     class Flake8MergeReporter(BaseReport):
-
         """An implementation of pep8.BaseReport merging results.
 
         This implementation merges results from the flake8 report
@@ -289,7 +287,6 @@ def _parse_suppressions(suppressions):
 
 
 class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
-
     """Provide a lint command."""
 
     def __init__(self, *args, **kwargs):

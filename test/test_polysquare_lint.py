@@ -50,7 +50,6 @@ def _open_file_force_create(path, mode="w"):
 
 
 class TestPolysquareLintCommand(TestCase):
-
     """Tests for the PolysquareLintCommand class."""
 
     def __init__(self, *args, **kwargs):
