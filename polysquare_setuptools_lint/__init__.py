@@ -326,7 +326,7 @@ class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
             return False
 
         # Handle errors which appear after the end of the document.
-        while line > len(lines) - 1:
+        while line > len(lines):
             line = line - 1
 
         relevant_line = lines[line - 1]
