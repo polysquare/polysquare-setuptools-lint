@@ -16,7 +16,7 @@ import shutil
 
 from tempfile import mkdtemp
 
-from distutils.errors import DistutilsArgError  # suppress(I100)
+from distutils.errors import DistutilsArgError  # suppress(I100,import-error)
 
 from iocapture import capture
 

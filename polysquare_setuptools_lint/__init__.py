@@ -26,7 +26,7 @@ from collections import namedtuple  # suppress(I100)
 
 from contextlib import contextmanager
 
-from distutils.errors import DistutilsArgError
+from distutils.errors import DistutilsArgError  # suppress(import-error)
 
 from jobstamps import jobstamp
 
