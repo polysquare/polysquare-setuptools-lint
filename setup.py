@@ -60,7 +60,7 @@ setup(name="polysquare-setuptools-lint",
           "pep257",
           "pyflakes",
           "pylint-common",
-          "pyroma",
+          "pyroma==1.8.3",
           "vulture",
           "logilab-common==0.63.0",
           "prospector>=0.10.1",
@@ -73,14 +73,6 @@ setup(name="polysquare-setuptools-lint",
           "six"
       ] + _ADDITIONAL_LINTERS,
       extras_require={
-          "green": [
-              "iocapture",
-              "mock",
-              "nose",
-              "nose-parameterized",
-              "setuptools-green",
-              "testtools"
-          ],
           "upload": ["setuptools-markdown"]
       },
       entry_points={
