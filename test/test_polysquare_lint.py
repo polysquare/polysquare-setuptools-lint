@@ -49,6 +49,15 @@ def _open_file_force_create(path, mode="w"):
     return open(path, mode)
 
 
+def disable_mod(*disable_list):
+    """Disable the specified linters for this test run."""
+    def modifier(command):
+        """Modifier for the command."""
+        command.disable_linters = list(disable_list)
+
+    return modifier
+
+
 class TestPolysquareLintCommand(TestCase):
     """Tests for the PolysquareLintCommand class."""
 
@@ -131,12 +140,38 @@ class TestPolysquareLintCommand(TestCase):
 
             return captured.stdout
 
+    PEP8_BUGS = [param("N801", "class wrong_name(object):\n    pass\n")]
+    PEP257_BUGS = [param("D100", "def my_method():\n    pass\n")]
+
     FLAKE8_BUGS = [
-        param("F401", "import sys\n"),
-        param("N801", "class wrong_name(object):\n    pass\n"),
-        param("D100", "def my_method():\n    pass\n"),
         param("I100", "import sys\n\nimport os\n"),
         param("Q000", "call('single quotes')\n")
+    ] + PEP8_BUGS + PEP257_BUGS
+
+    PYLINT_BUGS = [param("unused-argument",
+                         "def my_method(extras):\n    return 1\n")]
+    PYFLAKES_BUGS = [param("F821", "bar"), param("F821", "bar")]
+    DODGY_BUGS = [param("password", "FACEBOOK_PASSWORD = '123456'\n")]
+    VULTURE_BUGS = [param("unused-function", "def my_method():\n    pass\n")]
+
+    PROSPECTOR_TEST_ONLY_BUGS = PYFLAKES_BUGS
+    PROSPECTOR_MODULE_ONLY_BUGS = PYFLAKES_BUGS + DODGY_BUGS + VULTURE_BUGS
+
+    if can_run_pylint():
+        PROSPECTOR_MODULE_ONLY_BUGS += PYLINT_BUGS
+
+    PROSPECTOR_NO_TESTS_BUGS = [
+        param("invalid-name",
+              "def super_excessive_really_long_method_name_which_is_long():\n"
+              "    pass\n")
+    ] + VULTURE_BUGS + DODGY_BUGS
+
+    PROSPECTOR_ALL_BUGS = (PROSPECTOR_MODULE_ONLY_BUGS +
+                           PROSPECTOR_TEST_ONLY_BUGS)
+
+    PYROMA_BUGS = [
+        param("LongDescription",
+              "from setuptools import setup\nsetup(name=\"foo\")")
     ]
 
     @parameterized.expand(FLAKE8_BUGS)
@@ -150,6 +185,16 @@ class TestPolysquareLintCommand(TestCase):
                                        doctest.ELLIPSIS))
 
     @parameterized.expand(FLAKE8_BUGS)
+    def test_disable_flake8(self, bug_type, script):
+        """Don't find flake8 bugs when flake8 is disabled."""
+        with self._open_module_file() as f:
+            f.write(script)
+
+        self.assertThat(self._get_command_output(disable_mod("flake8")),
+                        DocTestMatches("...{0}...".format(bug_type),
+                                       doctest.ELLIPSIS))
+
+    @parameterized.expand(FLAKE8_BUGS)
     def test_find_bugs_with_flake8_tests(self, bug_type, script):
         """Find bugs with flake8 on tests."""
         with self._open_test_file() as f:
@@ -158,27 +203,6 @@ class TestPolysquareLintCommand(TestCase):
         self.assertThat(self._get_command_output(),
                         DocTestMatches("...{0}...".format(bug_type),
                                        doctest.ELLIPSIS))
-
-    if can_run_pylint():
-        PROSPECTOR_TEST_ONLY_BUGS = [
-            param("unused-argument",
-                  "def my_method(extras):\n    return 1\n"),
-        ]
-    else:
-        PROSPECTOR_TEST_ONLY_BUGS = []
-
-    PROSPECTOR_MODULE_ONLY_BUGS = [
-        param("unused-function", "def my_method():\n    pass\n"),
-    ]
-
-    PROSPECTOR_NO_TESTS_BUGS = [
-        param("invalid-name",
-              "def super_excessive_really_long_method_name_which_is_long():\n"
-              "    pass\n")
-    ] + PROSPECTOR_MODULE_ONLY_BUGS
-
-    PROSPECTOR_ALL_BUGS = (PROSPECTOR_MODULE_ONLY_BUGS +
-                           PROSPECTOR_TEST_ONLY_BUGS)
 
     @parameterized.expand(PROSPECTOR_ALL_BUGS)
     def test_find_bugs_with_prospector(self, bug_type, script):
@@ -210,10 +234,35 @@ class TestPolysquareLintCommand(TestCase):
                         Not(DocTestMatches("...{0}...".format(bug_type),
                             doctest.ELLIPSIS)))
 
-    PYROMA_BUGS = [
-        param("LongDescription",
-              "from setuptools import setup\nsetup(name=\"foo\")")
-    ]
+    @parameterized.expand(PYLINT_BUGS)
+    def test_disable_pylint(self, bug_type, script):
+        """Don't find pylint bugs when pylint is disabled."""
+        with self._open_module_file() as f:
+            f.write(script)
+
+        self.assertThat(self._get_command_output(disable_mod("pylint")),
+                        Not(DocTestMatches("...{0}...".format(bug_type),
+                                           doctest.ELLIPSIS)))
+
+    @parameterized.expand(DODGY_BUGS)
+    def test_disable_dodgy(self, bug_type, script):
+        """Don't find dodgy bugs when dodgy is disabled."""
+        with self._open_module_file() as f:
+            f.write(script)
+
+        self.assertThat(self._get_command_output(disable_mod("dodgy")),
+                        Not(DocTestMatches("...{0}...".format(bug_type),
+                                           doctest.ELLIPSIS)))
+
+    @parameterized.expand(VULTURE_BUGS)
+    def test_disable_vulture(self, bug_type, script):
+        """Don't find vulture bugs when vulture is disabled."""
+        with self._open_module_file() as f:
+            f.write(script)
+
+        self.assertThat(self._get_command_output(disable_mod("vulture")),
+                        Not(DocTestMatches("...{0}...".format(bug_type),
+                                           doctest.ELLIPSIS)))
 
     @parameterized.expand(PYROMA_BUGS)
     def test_find_bugs_with_pyroma(self, bug_type, script):
@@ -224,6 +273,16 @@ class TestPolysquareLintCommand(TestCase):
         self.assertThat(self._get_command_output(),
                         DocTestMatches("...{0}...".format(bug_type),
                                        doctest.ELLIPSIS))
+
+    @parameterized.expand(PYROMA_BUGS)
+    def test_disable_pyroma(self, bug_type, script):
+        """Don't find pyroma bugs when vulture is disabled."""
+        with self._open_setup_file() as setup_file:
+            setup_file.write(script)
+
+        self.assertThat(self._get_command_output(disable_mod("pyroma")),
+                        Not(DocTestMatches("...{0}...".format(bug_type),
+                                           doctest.ELLIPSIS)))
 
     def test_suppress_pyroma_warnings(self):
         """Suppress pyroma warnings by command line option."""
