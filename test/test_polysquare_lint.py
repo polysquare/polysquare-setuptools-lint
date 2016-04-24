@@ -159,23 +159,23 @@ class TestPolysquareLintCommand(TestCase):
                         DocTestMatches("...{0}...".format(bug_type),
                                        doctest.ELLIPSIS))
 
-    if can_run_pylint():
-        PROSPECTOR_TEST_ONLY_BUGS = [
-            param("unused-argument",
-                  "def my_method(extras):\n    return 1\n"),
-        ]
-    else:
-        PROSPECTOR_TEST_ONLY_BUGS = []
+    PYLINT_BUGS = [param("unused-argument",
+                         "def my_method(extras):\n    return 1\n")]
+    PYFLAKES_BUGS = [param("F821", "bar")]
+    DODGY_BUGS = [param("password", "FACEBOOK_PASSWORD = '123456'\n")]
+    VULTURE_BUGS = [param("unused-function", "def my_method():\n    pass\n")]
 
-    PROSPECTOR_MODULE_ONLY_BUGS = [
-        param("unused-function", "def my_method():\n    pass\n"),
-    ]
+    PROSPECTOR_TEST_ONLY_BUGS = PYFLAKES_BUGS
+    PROSPECTOR_MODULE_ONLY_BUGS = PYFLAKES_BUGS + DODGY_BUGS + VULTURE_BUGS
+
+    if can_run_pylint():
+        PROSPECTOR_MODULE_ONLY_BUGS += PYLINT_BUGS
 
     PROSPECTOR_NO_TESTS_BUGS = [
         param("invalid-name",
               "def super_excessive_really_long_method_name_which_is_long():\n"
               "    pass\n")
-    ] + PROSPECTOR_MODULE_ONLY_BUGS
+    ] + VULTURE_BUGS + DODGY_BUGS
 
     PROSPECTOR_ALL_BUGS = (PROSPECTOR_MODULE_ONLY_BUGS +
                            PROSPECTOR_TEST_ONLY_BUGS)

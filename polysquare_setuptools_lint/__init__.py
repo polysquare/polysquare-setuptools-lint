@@ -220,7 +220,6 @@ def _file_is_test(filename):
 def _run_prospector(filename, stamp_file_name):
     """Run prospector."""
     linter_tools = [
-        "dodgy",
         "pep257",
         "pep8",
         "pyflakes"
@@ -426,7 +425,7 @@ class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
                       [_stamped_deps(self.stamp_directory,
                                      _run_prospector_on,
                                      non_test_files,
-                                     ["vulture"])] +
+                                     ["vulture", "dodgy"])] +
                       [_stamped_deps(self.stamp_directory,
                                      _run_pyroma,
                                      "setup.py")])
