@@ -139,26 +139,6 @@ class TestPolysquareLintCommand(TestCase):
         param("Q000", "call('single quotes')\n")
     ]
 
-    @parameterized.expand(FLAKE8_BUGS)
-    def test_find_bugs_with_flake8(self, bug_type, script):
-        """Find bugs with flake8."""
-        with self._open_module_file() as f:
-            f.write(script)
-
-        self.assertThat(self._get_command_output(),
-                        DocTestMatches("...{0}...".format(bug_type),
-                                       doctest.ELLIPSIS))
-
-    @parameterized.expand(FLAKE8_BUGS)
-    def test_find_bugs_with_flake8_tests(self, bug_type, script):
-        """Find bugs with flake8 on tests."""
-        with self._open_test_file() as f:
-            f.write(script)
-
-        self.assertThat(self._get_command_output(),
-                        DocTestMatches("...{0}...".format(bug_type),
-                                       doctest.ELLIPSIS))
-
     PYLINT_BUGS = [param("unused-argument",
                          "def my_method(extras):\n    return 1\n")]
     PYFLAKES_BUGS = [param("F821", "bar")]
@@ -179,6 +159,31 @@ class TestPolysquareLintCommand(TestCase):
 
     PROSPECTOR_ALL_BUGS = (PROSPECTOR_MODULE_ONLY_BUGS +
                            PROSPECTOR_TEST_ONLY_BUGS)
+
+    PYROMA_BUGS = [
+        param("LongDescription",
+              "from setuptools import setup\nsetup(name=\"foo\")")
+    ]
+
+    @parameterized.expand(FLAKE8_BUGS)
+    def test_find_bugs_with_flake8(self, bug_type, script):
+        """Find bugs with flake8."""
+        with self._open_module_file() as f:
+            f.write(script)
+
+        self.assertThat(self._get_command_output(),
+                        DocTestMatches("...{0}...".format(bug_type),
+                                       doctest.ELLIPSIS))
+
+    @parameterized.expand(FLAKE8_BUGS)
+    def test_find_bugs_with_flake8_tests(self, bug_type, script):
+        """Find bugs with flake8 on tests."""
+        with self._open_test_file() as f:
+            f.write(script)
+
+        self.assertThat(self._get_command_output(),
+                        DocTestMatches("...{0}...".format(bug_type),
+                                       doctest.ELLIPSIS))
 
     @parameterized.expand(PROSPECTOR_ALL_BUGS)
     def test_find_bugs_with_prospector(self, bug_type, script):
@@ -209,11 +214,6 @@ class TestPolysquareLintCommand(TestCase):
         self.assertThat(self._get_command_output(),
                         Not(DocTestMatches("...{0}...".format(bug_type),
                             doctest.ELLIPSIS)))
-
-    PYROMA_BUGS = [
-        param("LongDescription",
-              "from setuptools import setup\nsetup(name=\"foo\")")
-    ]
 
     @parameterized.expand(PYROMA_BUGS)
     def test_find_bugs_with_pyroma(self, bug_type, script):
