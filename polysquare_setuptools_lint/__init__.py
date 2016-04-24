@@ -176,7 +176,7 @@ def can_run_frosted():
             platform.system() != "Windows")
 
 
-def _run_prospector_on(filenames, tools, ignore_codes=None):
+def _run_prospector_on(filenames, tools, disabled_linters, ignore_codes=None):
     """Run prospector on filename, using the specified tools.
 
     This function enables us to run different tools on different
@@ -186,6 +186,7 @@ def _run_prospector_on(filenames, tools, ignore_codes=None):
 
     assert len(tools) > 0
 
+    tools = list(set(tools) - set(disabled_linters))
     return_dict = dict()
     ignore_codes = ignore_codes or list()
 
@@ -217,7 +218,7 @@ def _file_is_test(filename):
     return bool(is_test.match(filename))
 
 
-def _run_prospector(filename, stamp_file_name):
+def _run_prospector(filename, stamp_file_name, disabled_linters):
     """Run prospector."""
     linter_tools = [
         "pep257",
@@ -254,6 +255,7 @@ def _run_prospector(filename, stamp_file_name):
                          _run_prospector_on,
                          [filename],
                          linter_tools,
+                         disabled_linters,
                          **kwargs)
 
 
@@ -420,15 +422,23 @@ class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
             # files to be passed to the linter, pyroma can only be run
             # on /setup.py, etc).
             non_test_files = [f for f in files if not _file_is_test(f)]
-            mapped = (mapper(_run_prospector, files, self.stamp_directory) +
-                      mapper(_run_flake8, files, self.stamp_directory) +
+            mapped = (mapper(_run_prospector,
+                             files,
+                             self.stamp_directory,
+                             self.disable_linters) +
                       [_stamped_deps(self.stamp_directory,
                                      _run_prospector_on,
                                      non_test_files,
-                                     ["vulture", "dodgy"])] +
-                      [_stamped_deps(self.stamp_directory,
-                                     _run_pyroma,
-                                     "setup.py")])
+                                     ["vulture", "dodgy"],
+                                     self.disable_linters)])
+
+            if "flake8" not in self.disable_linters:
+                mapped += mapper(_run_flake8, files, self.stamp_directory)
+
+            if "pyroma" not in self.disable_linters:
+                mapped.append(_stamped_deps(self.stamp_directory,
+                                            _run_pyroma,
+                                            "setup.py"))
 
             # This will ensure that we don't repeat messages, because
             # new keys overwrite old ones.
@@ -458,10 +468,11 @@ class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
         self.suppress_codes = list()
         self.exclusions = list()
         self.stamp_directory = ""
+        self.disable_linters = list()
 
     def finalize_options(self):  # suppress(unused-function)
         """Finalize all options."""
-        for option in ["suppress-codes", "exclusions"]:
+        for option in ["suppress-codes", "exclusions", "disable-linters"]:
             attribute = option.replace("-", "_")
             if isinstance(getattr(self, attribute), str):
                 setattr(self, attribute, getattr(self, attribute).split(","))
@@ -485,7 +496,8 @@ class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
         ("suppress-codes=", None, """Error codes to suppress"""),
         ("exclusions=", None, """Glob expressions of files to exclude"""),
         ("stamp-directory=", None,
-         """Where to store stamps of completed jobs""")
+         """Where to store stamps of completed jobs"""),
+        ("disable-linters", None, """Linters to disable""")
     ]
     # suppress(unused-variable)
     description = ("""run linter checks using prospector, """
