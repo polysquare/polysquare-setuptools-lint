@@ -70,7 +70,8 @@ setup(name="polysquare-setuptools-lint",
           "flake8-double-quotes",
           "flake8-import-order",
           "flake8-todo",
-          "six"
+          "six",
+          "polysquare-generic-file-linter>=0.1.11"
       ] + _ADDITIONAL_LINTERS,
       extras_require={
           "upload": ["setuptools-markdown"]
