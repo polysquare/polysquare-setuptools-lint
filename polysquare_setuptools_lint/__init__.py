@@ -6,8 +6,6 @@
 # See /LICENCE.md for Copyright information
 """Provide a setuptools command for linters."""
 
-import hashlib
-
 import multiprocessing
 
 import os
@@ -19,8 +17,6 @@ import re
 
 import sys  # suppress(I100)
 from sys import exit as sys_exit  # suppress(I100)
-
-import tempfile  # suppress(I100)
 
 from collections import namedtuple  # suppress(I100)
 
@@ -282,9 +278,61 @@ def _run_pyroma(setup_file):
     return return_dict
 
 
+_BLOCK_REGEXPS = [
+    r"\bpylint:disable=[^\s]*\b",
+    r"\bNOLINT:[^\s]*\b",
+    r"\bNOQA[^\s]*\b",
+    r"\bsuppress\([^\s]*\)"
+]
+
+
+def _run_polysquare_style_linter(matched_filenames, cache_dir):
+    """Run polysquare-generic-file-linter on matched_filenames."""
+    from polysquarelinter import linter
+    from prospector.message import Message, Location
+
+    return_dict = dict()
+
+    def _custom_reporter(error, file_path):
+        """Convert error messages into prospector messages."""
+        key = _Key(file_path, error[1].line, error[0])
+        loc = Location(file_path, None, None, error[1].line, 0)
+        return_dict[key] = Message("polysquare-generic-file-linter",
+                                   error[0],
+                                   loc,
+                                   error[1].description)
+
+    # suppress(protected-access,unused-attribute)
+    linter._report_lint_error = _custom_reporter
+    linter.main([
+        "--spellcheck-cache=" + os.path.join(cache_dir, "spelling"),
+        "--stamp-file-path=" + os.path.join(cache_dir,
+                                            "jobstamps",
+                                            "polysquarelinter"),
+        "--log-technical-terms-to=" + os.path.join(cache_dir,
+                                                   "technical-terms"),
+    ] + matched_filenames + [
+        "--block-regexps"
+    ] + _BLOCK_REGEXPS)
+
+    return return_dict
+
+
 def _parse_suppressions(suppressions):
     """Parse a suppressions field and return suppressed codes."""
     return suppressions[len("suppress("):-1].split(",")
+
+
+def _get_cache_dir(candidate):
+    """Get the current cache directory."""
+    if candidate and len(candidate):
+        return candidate
+
+    import distutils.dist  # suppress(import-error)
+    import distutils.command.build  # suppress(import-error)
+    build_cmd = distutils.command.build.build(distutils.dist.Distribution())
+    build_cmd.finalize_options()
+    return build_cmd.build_temp
 
 
 class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
@@ -294,6 +342,7 @@ class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
         """Initialize this class' instance variables."""
         setuptools.Command.__init__(self, *args, **kwargs)
         self._file_lines_cache = None
+        self.cache_directory = None
         self.stamp_directory = None
         self.suppress_codes = None
         self.exclusions = None
@@ -422,23 +471,34 @@ class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
             # files to be passed to the linter, pyroma can only be run
             # on /setup.py, etc).
             non_test_files = [f for f in files if not _file_is_test(f)]
+            if self.stamp_directory:
+                stamp_directory = self.stamp_directory
+            else:
+                stamp_directory = os.path.join(self.cache_directory,
+                                               "polysquare_setuptools_lint",
+                                               "jobstamps")
             mapped = (mapper(_run_prospector,
                              files,
-                             self.stamp_directory,
+                             stamp_directory,
                              self.disable_linters) +
-                      [_stamped_deps(self.stamp_directory,
+                      [_stamped_deps(stamp_directory,
                                      _run_prospector_on,
                                      non_test_files,
                                      ["vulture", "dodgy"],
                                      self.disable_linters)])
 
             if "flake8" not in self.disable_linters:
-                mapped += mapper(_run_flake8, files, self.stamp_directory)
+                mapped += mapper(_run_flake8, files, stamp_directory)
 
             if "pyroma" not in self.disable_linters:
-                mapped.append(_stamped_deps(self.stamp_directory,
+                mapped.append(_stamped_deps(stamp_directory,
                                             _run_pyroma,
                                             "setup.py"))
+
+            if "polysquare-generic-file-linter" not in self.disable_linters:
+                mapped.append(
+                    _run_polysquare_style_linter(files, self.cache_directory)
+                )
 
             # This will ensure that we don't repeat messages, because
             # new keys overwrite old ones.
@@ -467,6 +527,7 @@ class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
         self._file_lines_cache = dict()
         self.suppress_codes = list()
         self.exclusions = list()
+        self.cache_directory = ""
         self.stamp_directory = ""
         self.disable_linters = list()
 
@@ -481,23 +542,24 @@ class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
                 raise DistutilsArgError("""--{0} must be """
                                         """a list""".format(option))
 
-        if not isinstance(self.stamp_directory, str):
-            raise DistutilsArgError("""--stamp-directory=STAMP, STAMP """
+        if not isinstance(self.cache_directory, str):
+            raise DistutilsArgError("""--cache-directory=CACHE """
                                     """must be a string""")
 
-        if self.stamp_directory == "":
-            dir_hash = hashlib.md5(os.getcwd().encode("utf-8")).hexdigest()
-            self.stamp_directory = os.path.join(tempfile.gettempdir(),
-                                                "jobstamps",
-                                                "polysquare_setuptools_lint",
-                                                dir_hash)
+        if not isinstance(self.stamp_directory, str):
+            raise DistutilsArgError("""--stamp-directory=STAMP """
+                                    """must be a string""")
+
+        self.cache_directory = _get_cache_dir(self.cache_directory)
 
     user_options = [  # suppress(unused-variable)
         ("suppress-codes=", None, """Error codes to suppress"""),
         ("exclusions=", None, """Glob expressions of files to exclude"""),
-        ("stamp-directory=", None,
-         """Where to store stamps of completed jobs"""),
-        ("disable-linters", None, """Linters to disable""")
+        ("disable-linters=", None, """Linters to disable"""),
+        ("cache-directory=", None, """Where to store caches"""),
+        ("stamp-directory=",
+         None,
+         """Where to store stamps of completed jobs""")
     ]
     # suppress(unused-variable)
     description = ("""run linter checks using prospector, """

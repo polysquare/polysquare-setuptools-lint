@@ -339,7 +339,7 @@ class TestPolysquareLintCommand(TestCase):
     @parameterized.expand([
         param("suppress_codes"),
         param("exclusions"),
-        param("stamp_directory")
+        param("cache_directory")
     ])
     def test_passing_non_list_non_string_in_opts_raises(self, attrib):
         """Passing a non-list or non string as an option raises an error."""
