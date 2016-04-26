@@ -15,6 +15,7 @@ directory
 flake8
 linter
 linters
+markdownlint
 polysquare
 polysquarelint
 pypy3

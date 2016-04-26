@@ -6,6 +6,8 @@
 # See /LICENCE.md for Copyright information
 """Provide a setuptools command for linters."""
 
+import errno
+
 import multiprocessing
 
 import os
@@ -14,6 +16,8 @@ import os.path
 import platform
 
 import re
+
+import subprocess
 
 import sys  # suppress(I100)
 from sys import exit as sys_exit  # suppress(I100)
@@ -353,6 +357,32 @@ def _run_spellcheck_linter(matched_filenames, cache_dir):
     return return_dict
 
 
+def _run_markdownlint(matched_filenames):
+    """Run markdownlint on matched_filenames."""
+    from prospector.message import Message, Location
+
+    try:
+        proc = subprocess.Popen(["mdl"] + matched_filenames,
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE)
+        lines = proc.communicate()[0].decode().splitlines()
+    except OSError as error:
+        if error.errno == errno.ENOENT:
+            return []
+
+    lines = [
+        re.match(r"([\w\-.\/\\ ]+)\:([0-9]+)\: (\w+) (.+)", l).groups(1)
+        for l in lines
+    ]
+    return_dict = dict()
+    for filename, lineno, code, msg in lines:
+        key = _Key(filename, int(lineno), code)
+        loc = Location(filename, None, None, int(lineno), 0)
+        return_dict[key] = Message("markdownlint", code, loc, msg)
+
+    return return_dict
+
+
 def _parse_suppressions(suppressions):
     """Parse a suppressions field and return suppressed codes."""
     return suppressions[len("suppress("):-1].split(",")
@@ -547,6 +577,9 @@ class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
                     _run_spellcheck_linter(self._get_markdown_files(),
                                            self.cache_directory)
                 )
+
+            if "mdl" not in self.disable_linters:
+                mapped.append(_run_markdownlint(self._get_markdown_files()))
 
             # This will ensure that we don't repeat messages, because
             # new keys overwrite old ones.
