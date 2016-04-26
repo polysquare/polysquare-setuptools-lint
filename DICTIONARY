@@ -11,6 +11,7 @@ STAMP
 TestCase
 codes
 configparser
+directory
 flake8
 linter
 linters

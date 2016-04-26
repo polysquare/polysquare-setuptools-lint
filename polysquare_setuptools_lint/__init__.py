@@ -24,6 +24,9 @@ from contextlib import contextmanager
 
 from distutils.errors import DistutilsArgError  # suppress(import-error)
 
+from fnmatch import filter as fnfilter
+from fnmatch import fnmatch
+
 from jobstamps import jobstamp
 
 import setuptools
@@ -288,13 +291,13 @@ _BLOCK_REGEXPS = [
 
 def _run_polysquare_style_linter(matched_filenames, cache_dir):
     """Run polysquare-generic-file-linter on matched_filenames."""
-    from polysquarelinter import linter
+    from polysquarelinter import linter as lint
     from prospector.message import Message, Location
 
     return_dict = dict()
 
     def _custom_reporter(error, file_path):
-        """Convert error messages into prospector messages."""
+        """Reporter for polysquare-generic-file-linter."""
         key = _Key(file_path, error[1].line, error[0])
         loc = Location(file_path, None, None, error[1].line, 0)
         return_dict[key] = Message("polysquare-generic-file-linter",
@@ -303,8 +306,8 @@ def _run_polysquare_style_linter(matched_filenames, cache_dir):
                                    error[1].description)
 
     # suppress(protected-access,unused-attribute)
-    linter._report_lint_error = _custom_reporter
-    linter.main([
+    lint._report_lint_error = _custom_reporter
+    lint.main([
         "--spellcheck-cache=" + os.path.join(cache_dir, "spelling"),
         "--stamp-file-path=" + os.path.join(cache_dir,
                                             "jobstamps",
@@ -314,6 +317,38 @@ def _run_polysquare_style_linter(matched_filenames, cache_dir):
     ] + matched_filenames + [
         "--block-regexps"
     ] + _BLOCK_REGEXPS)
+
+    return return_dict
+
+
+def _run_spellcheck_linter(matched_filenames, cache_dir):
+    """Run spellcheck-linter on matched_filenames."""
+    from polysquarelinter import lint_spelling_only as lint
+    from prospector.message import Message, Location
+
+    return_dict = dict()
+
+    def _custom_reporter(error, file_path):
+        """Reporter for polysquare-generic-file-linter."""
+        line = error.line_offset + 1
+        key = _Key(file_path, line, "file/spelling_error")
+        loc = Location(file_path, None, None, line, 0)
+        # suppress(protected-access)
+        desc = lint._SPELLCHECK_MESSAGES[error.error_type].format(error.word)
+        return_dict[key] = Message("spellcheck-linter",
+                                   "file/spelling_error",
+                                   loc,
+                                   desc)
+
+    # suppress(protected-access,unused-attribute)
+    lint._report_spelling_error = _custom_reporter
+    lint.main([
+        "--spellcheck-cache=" + os.path.join(cache_dir, "spelling"),
+        "--stamp-file-path=" + os.path.join(cache_dir,
+                                            "jobstamps",
+                                            "polysquarelinter"),
+        "--technical-terms=" + os.path.join(cache_dir, "technical-terms"),
+    ] + matched_filenames)
 
     return return_dict
 
@@ -333,6 +368,25 @@ def _get_cache_dir(candidate):
     build_cmd = distutils.command.build.build(distutils.dist.Distribution())
     build_cmd.finalize_options()
     return build_cmd.build_temp
+
+
+def _all_files_matching_ext(start, ext):
+    """Get all files matching :ext: from :start: directory."""
+    md_files = []
+    for root, _, files in os.walk(start):
+        md_files += fnfilter([os.path.join(root, f) for f in files],
+                             "*." + ext)
+
+    return md_files
+
+
+def _is_excluded(filename, exclusions):
+    """True if filename matches any of exclusions."""
+    for exclusion in exclusions:
+        if fnmatch(filename, exclusion):
+            return True
+
+    return False
 
 
 class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
@@ -393,36 +447,26 @@ class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
         finally:
             pass
 
+    def _get_markdown_files(self):
+        """Get all markdown files."""
+        all_f = _all_files_matching_ext(os.getcwd(), "md")
+        exclusions = [
+            "*.egg/*",
+            "*.eggs/*",
+            "*build/*"
+        ] + self.exclusions
+        return sorted([f for f in all_f if not _is_excluded(f, exclusions)])
+
     def _get_files_to_lint(self, external_directories):
         """Get files to lint."""
-        from fnmatch import filter as fnfilter
-        from fnmatch import fnmatch
-
-        def is_excluded(filename, exclusions):
-            """True if filename matches any of exclusions."""
-            for exclusion in exclusions:
-                if fnmatch(filename, exclusion):
-                    return True
-
-            return False
-
-        def all_python_files_recursively(directory):
-            """Get all python files in this directory and subdirectories."""
-            py_files = []
-            for root, _, files in os.walk(directory):
-                py_files += fnfilter([os.path.join(root, f) for f in files],
-                                     "*.py")
-
-            return py_files
-
         all_f = []
 
         for external_dir in external_directories:
-            all_f.extend(all_python_files_recursively(external_dir))
+            all_f.extend(_all_files_matching_ext(external_dir, "py"))
 
         packages = self.distribution.packages or list()
         for package in packages:
-            all_f.extend(all_python_files_recursively(package))
+            all_f.extend(_all_files_matching_ext(package, "py"))
 
         py_modules = self.distribution.py_modules or list()
         for filename in py_modules:
@@ -438,7 +482,7 @@ class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
             "*.egg/*",
             "*.eggs/*"
         ] + self.exclusions
-        return sorted([f for f in all_f if not is_excluded(f, exclusions)])
+        return sorted([f for f in all_f if not _is_excluded(f, exclusions)])
 
     def run(self):  # suppress(unused-function)
         """Run linters."""
@@ -498,6 +542,10 @@ class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
             if "polysquare-generic-file-linter" not in self.disable_linters:
                 mapped.append(
                     _run_polysquare_style_linter(files, self.cache_directory)
+                )
+                mapped.append(
+                    _run_spellcheck_linter(self._get_markdown_files(),
+                                           self.cache_directory)
                 )
 
             # This will ensure that we don't repeat messages, because
