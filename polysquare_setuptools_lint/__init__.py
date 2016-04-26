@@ -561,25 +561,26 @@ class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
                                      ["vulture", "dodgy"],
                                      self.disable_linters)])
 
-            if "flake8" not in self.disable_linters:
-                mapped += mapper(_run_flake8, files, stamp_directory)
-
-            if "pyroma" not in self.disable_linters:
-                mapped.append(_stamped_deps(stamp_directory,
-                                            _run_pyroma,
-                                            "setup.py"))
-
-            if "polysquare-generic-file-linter" not in self.disable_linters:
-                mapped.append(
+            for key, action in {
+                "flake8": lambda: mapped.extend(mapper(_run_flake8,
+                                                       files,
+                                                       stamp_directory)),
+                "pyroma": lambda: mapped.append(_stamped_deps(stamp_directory,
+                                                              _run_pyroma,
+                                                              "setup.py")),
+                "mdl": lambda: mapped.append(
+                    _run_markdownlint(self._get_markdown_files())
+                ),
+                "polysquare-generic-file-linter": lambda: mapped.append(
                     _run_polysquare_style_linter(files, self.cache_directory)
-                )
-                mapped.append(
+                ),
+                "spellcheck-linter": lambda: mapped.append(
                     _run_spellcheck_linter(self._get_markdown_files(),
                                            self.cache_directory)
                 )
-
-            if "mdl" not in self.disable_linters:
-                mapped.append(_run_markdownlint(self._get_markdown_files()))
+            }.items():
+                if key not in self.disable_linters:
+                    action()
 
             # This will ensure that we don't repeat messages, because
             # new keys overwrite old ones.
