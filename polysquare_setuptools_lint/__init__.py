@@ -397,7 +397,7 @@ def _get_cache_dir(candidate):
     import distutils.command.build  # suppress(import-error)
     build_cmd = distutils.command.build.build(distutils.dist.Distribution())
     build_cmd.finalize_options()
-    return build_cmd.build_temp
+    return os.path.abspath(build_cmd.build_temp)
 
 
 def _all_files_matching_ext(start, ext):
