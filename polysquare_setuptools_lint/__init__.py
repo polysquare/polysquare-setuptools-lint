@@ -6,6 +6,8 @@
 # See /LICENCE.md for Copyright information
 """Provide a setuptools command for linters."""
 
+import errno
+
 import multiprocessing
 
 import os
@@ -14,6 +16,8 @@ import os.path
 import platform
 
 import re
+
+import subprocess
 
 import sys  # suppress(I100)
 from sys import exit as sys_exit  # suppress(I100)
@@ -353,6 +357,32 @@ def _run_spellcheck_linter(matched_filenames, cache_dir):
     return return_dict
 
 
+def _run_markdownlint(matched_filenames):
+    """Run markdownlint on matched_filenames."""
+    from prospector.message import Message, Location
+
+    try:
+        proc = subprocess.Popen(["mdl"] + matched_filenames,
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE)
+        lines = proc.communicate()[0].decode().splitlines()
+    except OSError as error:
+        if error.errno == errno.ENOENT:
+            return []
+
+    lines = [
+        re.match(r"([\w\-.\/\\ ]+)\:([0-9]+)\: (\w+) (.+)", l).groups(1)
+        for l in lines
+    ]
+    return_dict = dict()
+    for filename, lineno, code, msg in lines:
+        key = _Key(filename, int(lineno), code)
+        loc = Location(filename, None, None, int(lineno), 0)
+        return_dict[key] = Message("markdownlint", code, loc, msg)
+
+    return return_dict
+
+
 def _parse_suppressions(suppressions):
     """Parse a suppressions field and return suppressed codes."""
     return suppressions[len("suppress("):-1].split(",")
@@ -367,7 +397,7 @@ def _get_cache_dir(candidate):
     import distutils.command.build  # suppress(import-error)
     build_cmd = distutils.command.build.build(distutils.dist.Distribution())
     build_cmd.finalize_options()
-    return build_cmd.build_temp
+    return os.path.abspath(build_cmd.build_temp)
 
 
 def _all_files_matching_ext(start, ext):
@@ -447,7 +477,7 @@ class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
         finally:
             pass
 
-    def _get_markdown_files(self):
+    def _get_md_files(self):
         """Get all markdown files."""
         all_f = _all_files_matching_ext(os.getcwd(), "md")
         exclusions = [
@@ -483,6 +513,49 @@ class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
             "*.eggs/*"
         ] + self.exclusions
         return sorted([f for f in all_f if not _is_excluded(f, exclusions)])
+
+    # suppress(too-many-arguments)
+    def _map_over_linters(self,
+                          py_files,
+                          non_test_files,
+                          md_files,
+                          stamp_directory,
+                          mapper):
+        """Run mapper over passed in files, returning a list of results."""
+        dispatch = {
+            "flake8": lambda: mapper(_run_flake8, py_files, stamp_directory),
+            "pyroma": lambda: [_stamped_deps(stamp_directory,
+                                             _run_pyroma,
+                                             "setup.py")],
+            "mdl": lambda: [_run_markdownlint(md_files)],
+            "polysquare-generic-file-linter": lambda: [
+                _run_polysquare_style_linter(py_files, self.cache_directory)
+            ],
+            "spellcheck-linter": lambda: [
+                _run_spellcheck_linter(md_files,
+                                       self.cache_directory)
+            ]
+        }
+
+        # Prospector checks get handled on a case sub-linter by sub-linter
+        # basis internally, so always run the mapper over prospector.
+        prospector = (mapper(_run_prospector,
+                             py_files,
+                             stamp_directory,
+                             self.disable_linters) +
+                      [_stamped_deps(stamp_directory,
+                                     _run_prospector_on,
+                                     non_test_files,
+                                     ["vulture", "dodgy"],
+                                     self.disable_linters)])
+
+        for ret in prospector:
+            yield ret
+
+        for linter, action in dispatch.items():
+            if linter not in self.disable_linters:
+                for ret in action():
+                    yield ret
 
     def run(self):  # suppress(unused-function)
         """Run linters."""
@@ -521,37 +594,15 @@ class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
                 stamp_directory = os.path.join(self.cache_directory,
                                                "polysquare_setuptools_lint",
                                                "jobstamps")
-            mapped = (mapper(_run_prospector,
-                             files,
-                             stamp_directory,
-                             self.disable_linters) +
-                      [_stamped_deps(stamp_directory,
-                                     _run_prospector_on,
-                                     non_test_files,
-                                     ["vulture", "dodgy"],
-                                     self.disable_linters)])
-
-            if "flake8" not in self.disable_linters:
-                mapped += mapper(_run_flake8, files, stamp_directory)
-
-            if "pyroma" not in self.disable_linters:
-                mapped.append(_stamped_deps(stamp_directory,
-                                            _run_pyroma,
-                                            "setup.py"))
-
-            if "polysquare-generic-file-linter" not in self.disable_linters:
-                mapped.append(
-                    _run_polysquare_style_linter(files, self.cache_directory)
-                )
-                mapped.append(
-                    _run_spellcheck_linter(self._get_markdown_files(),
-                                           self.cache_directory)
-                )
 
             # This will ensure that we don't repeat messages, because
             # new keys overwrite old ones.
-            for keyed_messages_subset in mapped:
-                keyed_messages.update(keyed_messages_subset)
+            for keyed_subset in self._map_over_linters(files,
+                                                       non_test_files,
+                                                       self._get_md_files(),
+                                                       stamp_directory,
+                                                       mapper):
+                keyed_messages.update(keyed_subset)
 
         messages = []
         for _, message in keyed_messages.items():
