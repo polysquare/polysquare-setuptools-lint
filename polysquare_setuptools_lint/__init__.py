@@ -397,7 +397,16 @@ def _get_cache_dir(candidate):
     import distutils.command.build  # suppress(import-error)
     build_cmd = distutils.command.build.build(distutils.dist.Distribution())
     build_cmd.finalize_options()
-    return os.path.abspath(build_cmd.build_temp)
+    cache_dir = os.path.abspath(build_cmd.build_temp)
+
+    # Make sure that it is created before anyone tries to use it
+    try:
+        os.makedirs(cache_dir)
+    except OSError as error:
+        if error.errno != errno.EEXIST:
+            raise error
+
+    return cache_dir
 
 
 def _all_files_matching_ext(start, ext):
