@@ -19,6 +19,8 @@ import re
 
 import subprocess
 
+import traceback
+
 import sys  # suppress(I100)
 from sys import exit as sys_exit  # suppress(I100)
 
@@ -563,8 +565,15 @@ class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
 
         for linter, action in dispatch.items():
             if linter not in self.disable_linters:
-                for ret in action():
-                    yield ret
+                try:
+                    for ret in action():
+                        yield ret
+                except Exception as error:
+                    traceback.print_exc()
+                    sys.stderr.write("""Encountered error '{}' whilst """
+                                     """running {}""".format(str(error),
+                                                             linter))
+                    raise error
 
     def run(self):  # suppress(unused-function)
         """Run linters."""
