@@ -533,20 +533,20 @@ class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
                           stamp_directory,
                           mapper):
         """Run mapper over passed in files, returning a list of results."""
-        dispatch = {
-            "flake8": lambda: mapper(_run_flake8, py_files, stamp_directory),
-            "pyroma": lambda: [_stamped_deps(stamp_directory,
-                                             _run_pyroma,
-                                             "setup.py")],
-            "mdl": lambda: [_run_markdownlint(md_files)],
-            "polysquare-generic-file-linter": lambda: [
+        dispatch = [
+            ("flake8", lambda: mapper(_run_flake8, py_files, stamp_directory)),
+            ("pyroma", lambda: [_stamped_deps(stamp_directory,
+                                              _run_pyroma,
+                                              "setup.py")]),
+            ("mdl", lambda: [_run_markdownlint(md_files)]),
+            ("polysquare-generic-file-linter", lambda: [
                 _run_polysquare_style_linter(py_files, self.cache_directory)
-            ],
-            "spellcheck-linter": lambda: [
+            ]),
+            ("spellcheck-linter", lambda: [
                 _run_spellcheck_linter(md_files,
                                        self.cache_directory)
-            ]
-        }
+            ])
+        ]
 
         # Prospector checks get handled on a case sub-linter by sub-linter
         # basis internally, so always run the mapper over prospector.
@@ -563,7 +563,7 @@ class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
         for ret in prospector:
             yield ret
 
-        for linter, action in dispatch.items():
+        for linter, action in dispatch:
             if linter not in self.disable_linters:
                 try:
                     for ret in action():
