@@ -16,6 +16,10 @@ matrix:
   - os: osx
     language: generic
     env: PYTHON=python3 PIP=pip3
+addons:
+  apt:
+    packages:
+    - pandoc
 cache:
   directories:
   - container
