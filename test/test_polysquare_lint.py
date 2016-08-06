@@ -148,11 +148,12 @@ class TestPolysquareLintCommand(TestCase):
         param("Q000", "call('single quotes')\n")
     ] + PEP8_BUGS + PEP257_BUGS
 
-    PYLINT_BUGS = [param("unused-argument",
-                         "def my_method(extras):\n    return 1\n")]
+    PYLINT_BUGS = []
     PYFLAKES_BUGS = [param("F821", "bar"), param("F821", "bar")]
     DODGY_BUGS = [param("password", "FACEBOOK_PASSWORD = '123456'\n")]
-    VULTURE_BUGS = [param("unused-function", "def my_method():\n    pass\n")]
+    VULTURE_BUGS = [param("unused-function", "def my_method():\n    pass\n"),
+                    param("unused-argument",
+                          "def my_method(extras):\n    return 1\n")]
 
     PROSPECTOR_TEST_ONLY_BUGS = PYFLAKES_BUGS
     PROSPECTOR_MODULE_ONLY_BUGS = PYFLAKES_BUGS + DODGY_BUGS
