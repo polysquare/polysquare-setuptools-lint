@@ -192,8 +192,8 @@ class TestPolysquareLintCommand(TestCase):
             f.write(script)
 
         self.assertThat(self._get_command_output(disable_mod("flake8")),
-                        DocTestMatches("...{0}...".format(bug_type),
-                                       doctest.ELLIPSIS))
+                        Not(DocTestMatches("...{0}...".format(bug_type),
+                                           doctest.ELLIPSIS)))
 
     @parameterized.expand(FLAKE8_BUGS)
     def test_find_bugs_with_flake8_tests(self, bug_type, script):
