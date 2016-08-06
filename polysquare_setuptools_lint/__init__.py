@@ -195,6 +195,10 @@ def _run_prospector_on(filenames, tools, disabled_linters, ignore_codes=None):
     return_dict = dict()
     ignore_codes = ignore_codes or list()
 
+    # Early return if all tools were filtered out
+    if not len(tools):
+        return return_dict
+
     # pylint doesn't like absolute paths, so convert to relative.
     all_argv = (["-F", "-D", "-M", "--no-autodetect", "-s", "veryhigh"] +
                 ("-t " + " -t ".join(tools)).split(" ") +
