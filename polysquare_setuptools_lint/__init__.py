@@ -559,7 +559,7 @@ class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
                       [_stamped_deps(stamp_directory,
                                      _run_prospector_on,
                                      non_test_files,
-                                     "dodgy"],
+                                     ["dodgy"],
                                      self.disable_linters)])
 
         for ret in prospector:
