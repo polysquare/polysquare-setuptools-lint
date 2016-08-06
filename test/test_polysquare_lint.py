@@ -155,7 +155,7 @@ class TestPolysquareLintCommand(TestCase):
     VULTURE_BUGS = [param("unused-function", "def my_method():\n    pass\n")]
 
     PROSPECTOR_TEST_ONLY_BUGS = PYFLAKES_BUGS
-    PROSPECTOR_MODULE_ONLY_BUGS = PYFLAKES_BUGS + DODGY_BUGS + VULTURE_BUGS
+    PROSPECTOR_MODULE_ONLY_BUGS = PYFLAKES_BUGS + DODGY_BUGS
 
     if can_run_pylint():
         PROSPECTOR_MODULE_ONLY_BUGS += PYLINT_BUGS
@@ -164,7 +164,7 @@ class TestPolysquareLintCommand(TestCase):
         param("invalid-name",
               "def super_excessive_really_long_method_name_which_is_long():\n"
               "    pass\n")
-    ] + VULTURE_BUGS + DODGY_BUGS
+    ] + DODGY_BUGS
 
     PROSPECTOR_ALL_BUGS = (PROSPECTOR_MODULE_ONLY_BUGS +
                            PROSPECTOR_TEST_ONLY_BUGS)
