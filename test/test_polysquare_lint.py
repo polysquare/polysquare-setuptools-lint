@@ -191,7 +191,9 @@ class TestPolysquareLintCommand(TestCase):
         with self._open_module_file() as f:
             f.write(script)
 
-        self.assertThat(self._get_command_output(disable_mod("flake8")),
+        self.assertThat(self._get_command_output(disable_mod("flake8",
+                                                             "pep8",
+                                                             "pep257")),
                         Not(DocTestMatches("...{0}...".format(bug_type),
                                            doctest.ELLIPSIS)))
 
