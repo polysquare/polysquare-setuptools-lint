@@ -550,6 +550,8 @@ class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
 
         # Prospector checks get handled on a case sub-linter by sub-linter
         # basis internally, so always run the mapper over prospector.
+        #
+        # vulture should be added again once issue 180 is fixed.
         prospector = (mapper(_run_prospector,
                              py_files,
                              stamp_directory,
@@ -557,7 +559,7 @@ class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
                       [_stamped_deps(stamp_directory,
                                      _run_prospector_on,
                                      non_test_files,
-                                     ["vulture", "dodgy"],
+                                     "dodgy"],
                                      self.disable_linters)])
 
         for ret in prospector:
