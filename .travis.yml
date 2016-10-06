@@ -13,9 +13,11 @@ matrix:
   - os: osx
     language: generic
     env: PYTHON=python
+    osx_image: xcode8
   - os: osx
     language: generic
     env: PYTHON=python3
+    osx_image: xcode8
 addons:
   apt:
     packages:
