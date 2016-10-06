@@ -97,6 +97,12 @@ class _Key(namedtuple("_Key", "file line code")):
         return self.file < other.file
 
 
+def _debug_linter_status(linter, filename, show_lint_files):
+    """Indicate that we are running this linter if required."""
+    if show_lint_files:
+        print("{linter}: {filename}".format(linter=linter, filename=filename))
+
+
 def _run_flake8_internal(filename):
     """Run flake8."""
     from flake8.engine import get_style_guide
@@ -153,8 +159,9 @@ def _run_flake8_internal(filename):
     return return_dict
 
 
-def _run_flake8(filename, stamp_file_name):
+def _run_flake8(filename, stamp_file_name, show_lint_files):
     """Run flake8, cached by stamp_file_name."""
+    _debug_linter_status("flake8", filename, show_lint_files)
     return _stamped_deps(stamp_file_name,
                          _run_flake8_internal,
                          filename)
@@ -181,7 +188,11 @@ def can_run_frosted():
             platform.system() != "Windows")
 
 
-def _run_prospector_on(filenames, tools, disabled_linters, ignore_codes=None):
+def _run_prospector_on(filenames,
+                       tools,
+                       disabled_linters,
+                       show_lint_files,
+                       ignore_codes=None):
     """Run prospector on filename, using the specified tools.
 
     This function enables us to run different tools on different
@@ -201,9 +212,12 @@ def _run_prospector_on(filenames, tools, disabled_linters, ignore_codes=None):
 
     # pylint doesn't like absolute paths, so convert to relative.
     all_argv = (["-F", "-D", "-M", "--no-autodetect", "-s", "veryhigh"] +
-                ("-t " + " -t ".join(tools)).split(" ") +
-                [os.path.relpath(f) for f in filenames])
-    with _custom_argv(all_argv):
+                ("-t " + " -t ".join(tools)).split(" "))
+
+    for filename in filenames:
+        _debug_linter_status("prospector", filename, show_lint_files)
+
+    with _custom_argv(all_argv + [os.path.relpath(f) for f in filenames]):
         prospector = Prospector(ProspectorConfig())
         prospector.execute()
         messages = prospector.get_messages() or list()
@@ -227,7 +241,10 @@ def _file_is_test(filename):
     return bool(is_test.match(filename))
 
 
-def _run_prospector(filename, stamp_file_name, disabled_linters):
+def _run_prospector(filename,
+                    stamp_file_name,
+                    disabled_linters,
+                    show_lint_files):
     """Run prospector."""
     linter_tools = [
         "pep257",
@@ -265,13 +282,16 @@ def _run_prospector(filename, stamp_file_name, disabled_linters):
                          [filename],
                          linter_tools,
                          disabled_linters,
+                         show_lint_files,
                          **kwargs)
 
 
-def _run_pyroma(setup_file):
+def _run_pyroma(setup_file, show_lint_files):
     """Run pyroma."""
     from pyroma import projectdata, ratings
     from prospector.message import Message, Location
+
+    _debug_linter_status("pyroma", setup_file, show_lint_files)
 
     return_dict = dict()
 
@@ -299,7 +319,9 @@ _BLOCK_REGEXPS = [
 ]
 
 
-def _run_polysquare_style_linter(matched_filenames, cache_dir):
+def _run_polysquare_style_linter(matched_filenames,
+                                 cache_dir,
+                                 show_lint_files):
     """Run polysquare-generic-file-linter on matched_filenames."""
     from polysquarelinter import linter as lint
     from prospector.message import Message, Location
@@ -314,6 +336,9 @@ def _run_polysquare_style_linter(matched_filenames, cache_dir):
                                    error[0],
                                    loc,
                                    error[1].description)
+
+    for filename in matched_filenames:
+        _debug_linter_status("style-linter", filename, show_lint_files)
 
     # suppress(protected-access,unused-attribute)
     lint._report_lint_error = _custom_reporter
@@ -331,10 +356,13 @@ def _run_polysquare_style_linter(matched_filenames, cache_dir):
     return return_dict
 
 
-def _run_spellcheck_linter(matched_filenames, cache_dir):
+def _run_spellcheck_linter(matched_filenames, cache_dir, show_lint_files):
     """Run spellcheck-linter on matched_filenames."""
     from polysquarelinter import lint_spelling_only as lint
     from prospector.message import Message, Location
+
+    for filename in matched_filenames:
+        _debug_linter_status("spellcheck-linter", filename, show_lint_files)
 
     return_dict = dict()
 
@@ -363,9 +391,12 @@ def _run_spellcheck_linter(matched_filenames, cache_dir):
     return return_dict
 
 
-def _run_markdownlint(matched_filenames):
+def _run_markdownlint(matched_filenames, show_lint_files):
     """Run markdownlint on matched_filenames."""
     from prospector.message import Message, Location
+
+    for filename in matched_filenames:
+        _debug_linter_status("mdl", filename, show_lint_files)
 
     try:
         proc = subprocess.Popen(["mdl"] + matched_filenames,
@@ -538,17 +569,25 @@ class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
                           mapper):
         """Run mapper over passed in files, returning a list of results."""
         dispatch = [
-            ("flake8", lambda: mapper(_run_flake8, py_files, stamp_directory)),
+            ("flake8", lambda: mapper(_run_flake8,
+                                      py_files,
+                                      stamp_directory,
+                                      self.show_lint_files)),
             ("pyroma", lambda: [_stamped_deps(stamp_directory,
                                               _run_pyroma,
-                                              "setup.py")]),
-            ("mdl", lambda: [_run_markdownlint(md_files)]),
+                                              "setup.py",
+                                              self.show_lint_files)]),
+            ("mdl", lambda: [_run_markdownlint(md_files,
+                                               self.show_lint_files)]),
             ("polysquare-generic-file-linter", lambda: [
-                _run_polysquare_style_linter(py_files, self.cache_directory)
+                _run_polysquare_style_linter(py_files,
+                                             self.cache_directory,
+                                             self.show_lint_files)
             ]),
             ("spellcheck-linter", lambda: [
                 _run_spellcheck_linter(md_files,
-                                       self.cache_directory)
+                                       self.cache_directory,
+                                       self.show_lint_files)
             ])
         ]
 
@@ -559,12 +598,14 @@ class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
         prospector = (mapper(_run_prospector,
                              py_files,
                              stamp_directory,
-                             self.disable_linters) +
+                             self.disable_linters,
+                             self.show_lint_files) +
                       [_stamped_deps(stamp_directory,
                                      _run_prospector_on,
                                      non_test_files,
                                      ["dodgy"],
-                                     self.disable_linters)])
+                                     self.disable_linters,
+                                     self.show_lint_files)])
 
         for ret in prospector:
             yield ret
@@ -593,10 +634,11 @@ class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
             sys_exit(0)
             return
 
-        use_multiprocessing = (not os.getenv("DISABLE_MULTIPROCESSING",
-                                             None) and
-                               multiprocessing.cpu_count() < len(files) and
-                               multiprocessing.cpu_count() > 2)
+        use_multiprocessing = ((not os.getenv("DISABLE_MULTIPROCESSING",
+                                              None) and
+                                multiprocessing.cpu_count() < len(files) and
+                                multiprocessing.cpu_count() > 2) or
+                               self.show_lint_files)
 
         if use_multiprocessing:
             mapper = parmap.map
@@ -653,6 +695,7 @@ class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
         self.cache_directory = ""
         self.stamp_directory = ""
         self.disable_linters = list()
+        self.show_lint_files = 0
 
     def finalize_options(self):  # suppress(unused-function)
         """Finalize all options."""
@@ -673,6 +716,13 @@ class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
             raise DistutilsArgError("""--stamp-directory=STAMP """
                                     """must be a string""")
 
+        if not isinstance(self.stamp_directory, str):
+            raise DistutilsArgError("""--stamp-directory=STAMP """
+                                    """must be a string""")
+
+        if not isinstance(self.show_lint_files, int):
+            raise DistutilsArgError("""--show-lint-files must be a int""")
+
         self.cache_directory = _get_cache_dir(self.cache_directory)
 
     user_options = [  # suppress(unused-variable)
@@ -682,7 +732,8 @@ class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
         ("cache-directory=", None, """Where to store caches"""),
         ("stamp-directory=",
          None,
-         """Where to store stamps of completed jobs""")
+         """Where to store stamps of completed jobs"""),
+        ("show-lint-files", None, """Show files before running lint""")
     ]
     # suppress(unused-variable)
     description = ("""run linter checks using prospector, """
