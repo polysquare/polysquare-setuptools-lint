@@ -29,7 +29,7 @@ else:
 
 
 setup(name="polysquare-setuptools-lint",
-      version="0.0.46",
+      version="0.0.47",
       description="""Provides a 'polysquarelint' command for setuptools""",
       long_description_markdown_filename="README.md",
       author="Sam Spilsbury",
