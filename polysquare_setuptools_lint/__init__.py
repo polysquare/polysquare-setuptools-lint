@@ -116,7 +116,6 @@ def _run_flake8_internal(filename):
     class Flake8MergeReporter(BaseReport):
         """An implementation of pep8.BaseReport merging results.
 
-
         This implementation merges results from the flake8 report
         into the prospector report created earlier.
         """
@@ -171,7 +170,6 @@ def _run_flake8(filename, stamp_file_name, show_lint_files):
 def can_run_pylint():
     """Return true if we can run pylint.
 
-
     Pylint fails on pypy3 as pypy3 doesn't implement certain attributes
     on functions.
     """
@@ -181,7 +179,6 @@ def can_run_pylint():
 
 def can_run_frosted():
     """Return true if we can run frosted.
-
 
     Frosted fails on pypy3 as the installer depends on configparser. It
     also fails on Windows, because it reports file names incorrectly.
@@ -197,7 +194,6 @@ def _run_prospector_on(filenames,
                        show_lint_files,
                        ignore_codes=None):
     """Run prospector on filename, using the specified tools.
-
 
     This function enables us to run different tools on different
     classes of files, which is necessary in the case of tests.
@@ -497,7 +493,6 @@ class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
 
     def _suppressed(self, filename, line, code):
         """Return true if linter error code is suppressed inline.
-
 
         The suppression format is suppress(CODE1,CODE2,CODE3) etc.
         """
