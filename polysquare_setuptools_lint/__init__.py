@@ -140,7 +140,7 @@ def _run_flake8_internal(filename):
             code = super(Flake8MergeReporter, self).error(line,
                                                           offset,
                                                           text,
-                                                          check)
+                                                          check) or "no-code"
 
             key = _Key(self._current_file, line, code)
             return_dict[key] = Message(code,
