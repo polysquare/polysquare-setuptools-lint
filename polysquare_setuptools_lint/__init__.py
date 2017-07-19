@@ -55,13 +55,12 @@ def _patched_pep257():
     import pep257
 
     if getattr(pep257, "log", None):
-        def dummy(*args, **kwargs):
-            """A dummy logging function."""
+        def _dummy(*args, **kwargs):
             del args
             del kwargs
 
         old_log_info = pep257.log.info
-        pep257.log.info = dummy  # suppress(unused-attribute)
+        pep257.log.info = _dummy  # suppress(unused-attribute)
     try:
         yield
     finally:
@@ -329,7 +328,6 @@ def _run_polysquare_style_linter(matched_filenames,
     return_dict = dict()
 
     def _custom_reporter(error, file_path):
-        """Reporter for polysquare-generic-file-linter."""
         key = _Key(file_path, error[1].line, error[0])
         loc = Location(file_path, None, None, error[1].line, 0)
         return_dict[key] = Message("polysquare-generic-file-linter",
@@ -367,7 +365,6 @@ def _run_spellcheck_linter(matched_filenames, cache_dir, show_lint_files):
     return_dict = dict()
 
     def _custom_reporter(error, file_path):
-        """Reporter for polysquare-generic-file-linter."""
         line = error.line_offset + 1
         key = _Key(file_path, line, "file/spelling_error")
         loc = Location(file_path, None, None, line, 0)
