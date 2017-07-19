@@ -134,20 +134,20 @@ def _run_flake8_internal(filename):
                                                        expected,
                                                        line_offset)
 
-        def error(self, line, offset, text, check):
+        def error(self, line_number, offset, text, check):
             """Record error and store in return_dict."""
-            code = super(Flake8MergeReporter, self).error(line,
+            code = super(Flake8MergeReporter, self).error(line_number,
                                                           offset,
                                                           text,
                                                           check) or "no-code"
 
-            key = _Key(self._current_file, line, code)
+            key = _Key(self._current_file, line_number, code)
             return_dict[key] = Message(code,
                                        code,
                                        Location(self._current_file,
                                                 None,
                                                 None,
-                                                line,
+                                                line_number,
                                                 offset),
                                        text[5:])
 
