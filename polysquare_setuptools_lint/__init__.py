@@ -187,6 +187,7 @@ def can_run_frosted():
             platform.system() != "Windows")
 
 
+# suppress(too-many-locals)
 def _run_prospector_on(filenames,
                        tools,
                        disabled_linters,
