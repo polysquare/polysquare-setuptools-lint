@@ -500,7 +500,7 @@ class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
         lines = self._file_lines(filename)
 
         # File is zero length, cannot be suppressed
-        if lines:
+        if not lines:
             return False
 
         # Handle errors which appear after the end of the document.
@@ -628,7 +628,7 @@ class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
         cwd = os.getcwd()
         files = self._get_files_to_lint([os.path.join(cwd, "test")])
 
-        if files:
+        if not files:
             sys_exit(0)
             return
 
