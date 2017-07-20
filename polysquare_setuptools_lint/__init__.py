@@ -200,14 +200,14 @@ def _run_prospector_on(filenames,
     """
     from prospector.run import Prospector, ProspectorConfig
 
-    assert len(tools) > 0
+    assert tools
 
     tools = list(set(tools) - set(disabled_linters))
     return_dict = dict()
     ignore_codes = ignore_codes or list()
 
     # Early return if all tools were filtered out
-    if not len(tools):
+    if not tools:
         return return_dict
 
     # pylint doesn't like absolute paths, so convert to relative.
@@ -425,7 +425,7 @@ def _parse_suppressions(suppressions):
 
 def _get_cache_dir(candidate):
     """Get the current cache directory."""
-    if candidate and len(candidate):
+    if candidate:
         return candidate
 
     import distutils.dist  # suppress(import-error)
