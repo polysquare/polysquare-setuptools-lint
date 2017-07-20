@@ -55,13 +55,12 @@ def _patched_pep257():
     import pep257
 
     if getattr(pep257, "log", None):
-        def dummy(*args, **kwargs):
-            """A dummy logging function."""
+        def _dummy(*args, **kwargs):
             del args
             del kwargs
 
         old_log_info = pep257.log.info
-        pep257.log.info = dummy  # suppress(unused-attribute)
+        pep257.log.info = _dummy  # suppress(unused-attribute)
     try:
         yield
     finally:
@@ -135,20 +134,20 @@ def _run_flake8_internal(filename):
                                                        expected,
                                                        line_offset)
 
-        def error(self, line, offset, text, check):
+        def error(self, line_number, offset, text, check):
             """Record error and store in return_dict."""
-            code = super(Flake8MergeReporter, self).error(line,
+            code = super(Flake8MergeReporter, self).error(line_number,
                                                           offset,
                                                           text,
-                                                          check)
+                                                          check) or "no-code"
 
-            key = _Key(self._current_file, line, code)
+            key = _Key(self._current_file, line_number, code)
             return_dict[key] = Message(code,
                                        code,
                                        Location(self._current_file,
                                                 None,
                                                 None,
-                                                line,
+                                                line_number,
                                                 offset),
                                        text[5:])
 
@@ -188,6 +187,7 @@ def can_run_frosted():
             platform.system() != "Windows")
 
 
+# suppress(too-many-locals)
 def _run_prospector_on(filenames,
                        tools,
                        disabled_linters,
@@ -200,14 +200,14 @@ def _run_prospector_on(filenames,
     """
     from prospector.run import Prospector, ProspectorConfig
 
-    assert len(tools) > 0
+    assert tools
 
     tools = list(set(tools) - set(disabled_linters))
     return_dict = dict()
     ignore_codes = ignore_codes or list()
 
     # Early return if all tools were filtered out
-    if not len(tools):
+    if not tools:
         return return_dict
 
     # pylint doesn't like absolute paths, so convert to relative.
@@ -329,7 +329,6 @@ def _run_polysquare_style_linter(matched_filenames,
     return_dict = dict()
 
     def _custom_reporter(error, file_path):
-        """Reporter for polysquare-generic-file-linter."""
         key = _Key(file_path, error[1].line, error[0])
         loc = Location(file_path, None, None, error[1].line, 0)
         return_dict[key] = Message("polysquare-generic-file-linter",
@@ -367,7 +366,6 @@ def _run_spellcheck_linter(matched_filenames, cache_dir, show_lint_files):
     return_dict = dict()
 
     def _custom_reporter(error, file_path):
-        """Reporter for polysquare-generic-file-linter."""
         line = error.line_offset + 1
         key = _Key(file_path, line, "file/spelling_error")
         loc = Location(file_path, None, None, line, 0)
@@ -427,7 +425,7 @@ def _parse_suppressions(suppressions):
 
 def _get_cache_dir(candidate):
     """Get the current cache directory."""
-    if candidate and len(candidate):
+    if candidate:
         return candidate
 
     import distutils.dist  # suppress(import-error)
@@ -457,7 +455,7 @@ def _all_files_matching_ext(start, ext):
 
 
 def _is_excluded(filename, exclusions):
-    """True if filename matches any of exclusions."""
+    """Return true if filename matches any of exclusions."""
     for exclusion in exclusions:
         if fnmatch(filename, exclusion):
             return True
@@ -502,7 +500,7 @@ class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
         lines = self._file_lines(filename)
 
         # File is zero length, cannot be suppressed
-        if len(lines) == 0:
+        if not lines:
             return False
 
         # Handle errors which appear after the end of the document.
@@ -630,7 +628,7 @@ class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
         cwd = os.getcwd()
         files = self._get_files_to_lint([os.path.join(cwd, "test")])
 
-        if len(files) == 0:
+        if not files:
             sys_exit(0)
             return
 
@@ -683,7 +681,7 @@ class PolysquareLintCommand(setuptools.Command):  # suppress(unused-function)
                                                       summary=False,
                                                       profile=False) + "\n")
 
-        if len(messages):
+        if messages:
             sys_exit(1)
 
     def initialize_options(self):  # suppress(unused-function)

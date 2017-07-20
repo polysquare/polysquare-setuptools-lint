@@ -51,11 +51,10 @@ def _open_file_force_create(path, mode="w"):
 
 def disable_mod(*disable_list):
     """Disable the specified linters for this test run."""
-    def modifier(command):
-        """Modifier for the command."""
+    def _modifier(command):
         command.disable_linters = list(disable_list)
 
-    return modifier
+    return _modifier
 
 
 class TestPolysquareLintCommand(TestCase):
@@ -151,9 +150,7 @@ class TestPolysquareLintCommand(TestCase):
     PYLINT_BUGS = []
     PYFLAKES_BUGS = [param("F821", "bar"), param("F821", "bar")]
     DODGY_BUGS = [param("password", "FACEBOOK_PASSWORD = '123456'\n")]
-    VULTURE_BUGS = [param("unused-function", "def my_method():\n    pass\n"),
-                    param("unused-argument",
-                          "def my_method(extras):\n    return 1\n")]
+    VULTURE_BUGS = [param("unused-function", "def my_method():\n    pass\n")]
 
     PROSPECTOR_TEST_ONLY_BUGS = PYFLAKES_BUGS
     PROSPECTOR_MODULE_ONLY_BUGS = PYFLAKES_BUGS + DODGY_BUGS
