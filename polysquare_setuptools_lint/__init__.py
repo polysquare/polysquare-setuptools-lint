@@ -455,7 +455,7 @@ def _all_files_matching_ext(start, ext):
 
 
 def _is_excluded(filename, exclusions):
-    """True if filename matches any of exclusions."""
+    """Return true if filename matches any of exclusions."""
     for exclusion in exclusions:
         if fnmatch(filename, exclusion):
             return True
