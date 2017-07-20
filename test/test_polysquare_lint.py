@@ -51,11 +51,10 @@ def _open_file_force_create(path, mode="w"):
 
 def disable_mod(*disable_list):
     """Disable the specified linters for this test run."""
-    def modifier(command):
-        """Modifier for the command."""
+    def _modifier(command):
         command.disable_linters = list(disable_list)
 
-    return modifier
+    return _modifier
 
 
 class TestPolysquareLintCommand(TestCase):
